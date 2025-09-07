@@ -19,16 +19,19 @@ export type Database = {
           blur_data: string | null
           created_at: string
           id: string
+          is_new: boolean | null
         }
         Insert: {
           blur_data?: string | null
           created_at?: string
           id?: string
+          is_new?: boolean | null
         }
         Update: {
           blur_data?: string | null
           created_at?: string
           id?: string
+          is_new?: boolean | null
         }
         Relationships: []
       }
@@ -75,6 +78,7 @@ export type Database = {
           is_mandatory_category: boolean | null
           is_validated: boolean | null
           master_tag_id: string | null
+          time_used: number | null
           title: string | null
         }
         Insert: {
@@ -83,6 +87,7 @@ export type Database = {
           is_mandatory_category?: boolean | null
           is_validated?: boolean | null
           master_tag_id?: string | null
+          time_used?: number | null
           title?: string | null
         }
         Update: {
@@ -91,6 +96,7 @@ export type Database = {
           is_mandatory_category?: boolean | null
           is_validated?: boolean | null
           master_tag_id?: string | null
+          time_used?: number | null
           title?: string | null
         }
         Relationships: [
@@ -108,7 +114,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      reset_is_new: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

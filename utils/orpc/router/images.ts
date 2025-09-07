@@ -7,6 +7,8 @@ export const getAllImages = pub
   .input(
     z.object({
       tagIds: z.array(z.string()).optional(),
+      limit: z.number().min(1).max(100).default(20),
+      cursor: z.string().optional(),
     })
   )
   .handler(async ({ input }) => {
@@ -46,10 +48,23 @@ export const getAllImages = pub
         )
     }
 
+    // Add cursor-based pagination
+    if (input.cursor) {
+      query = query.where('images.created_at', '<', input.cursor)
+    }
+
     const result = await query
       .orderBy('images.created_at', 'desc')
+      .limit(input.limit + 1) // Get one extra to check if there's more
       .execute()
 
+    const hasMore = result.length > input.limit
+    const images = hasMore ? result.slice(0, input.limit) : result
+    const nextCursor = hasMore ? images[images.length - 1]?.created_at : null
 
-    return result
+    return {
+      images,
+      nextCursor,
+      hasMore,
+    }
   })

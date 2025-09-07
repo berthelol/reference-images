@@ -137,7 +137,7 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
         {groupedTags.masterTags.map((masterTag: any) => (
           <div key={masterTag.id} className="space-y-3">
             {/* Master Tag Header */}
-            <h3 className="text-sm font-medium text-muted-foreground border-b pb-1">
+            <h3 className="text-sm font-medium border-b pb-1">
               {masterTag.title}
             </h3>
 
@@ -158,7 +158,7 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
                     }
                     className="cursor-pointer"
                   >
-                    {tag.title}
+                    {`${tag.title} (${tag.time_used|| 0})`}
                   </Badge>
                 </label>
               ))}

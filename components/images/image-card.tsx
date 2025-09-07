@@ -44,6 +44,8 @@ export function ImageCard({ image }: ImageCardProps) {
       <div className="relative aspect-square">
         <ImageWithFallback
           src={getImageUrl(image?.id)}
+          placeholder={image?.blur_data ? 'blur' : 'empty'}
+          blurDataURL={image?.blur_data || ''}
           alt={`Reference image ${image?.id}`}
           fill
           className="object-cover"

@@ -2,11 +2,13 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 import sharp from "sharp";
 import { openai } from "@ai-sdk/openai";
+import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { getPlaiceholder } from "plaiceholder";
 import { supabaseAdmin } from "@/utils/supabase/admin";
 import { db } from "@/utils/kysely/client";
 import { getImageUrl } from "@/utils/images/helper";
+
 
 // TODO
 
@@ -18,7 +20,20 @@ import { getImageUrl } from "@/utils/images/helper";
 
 export const processImageTask = task({
   id: "process-image",
-  run: async (payload: { imageUrls: string[] }) => {
+  run: async (payload: { imageUrls: string[]; model?: "openai" | "gemini" }) => {
+    // Model configuration
+    const modelConfig = {
+      openai: {
+        provider: openai("gpt-4o"),
+        name: "gpt-4o"
+      },
+      gemini: {
+        provider: google("gemini-2.5-flash"),
+        name: "gemini-2.5-flash"
+      }
+    };
+
+    const selectedModel = modelConfig[payload.model || "openai"];
     const supabase = supabaseAdmin;
     const results: any[] = [];
 
@@ -91,11 +106,11 @@ export const processImageTask = task({
 
     for (const imageUrl of payload.imageUrls) {
       try {
-        logger.info(`Processing image ${imageUrl}`);
+        logger.info(`Processing image`, { imageUrl });
         // Skip SVG and GIF files
         const urlLower = imageUrl.toLowerCase();
         if (urlLower.includes(".svg") || urlLower.includes(".gif")) {
-          logger.info(`Skipping ${imageUrl} - SVG/GIF not supported`);
+          logger.info(`Skipping ${imageUrl} - SVG/GIF not supported`, { imageUrl });
           continue;
         }
 
@@ -123,7 +138,7 @@ export const processImageTask = task({
         let aiResult;
         try {
           aiResult = await generateObject({
-            model: openai("gpt-4o"),
+            model: selectedModel.provider,
             schema: z.object({
               tagIds: z
                 .array(z.string())
@@ -136,7 +151,7 @@ export const processImageTask = task({
                 content: [
                   {
                     type: "text",
-                    text: `Analyze this image and select the most relevant tags from the list below.
+                    text: `Analyze this image and select the tags that best describe the image content from the list below.
 You must respond with a JSON object containing an array of tag IDs that best describe the image content.
 
 ${mandatoryInstructions ? `MANDATORY REQUIREMENTS:\n${mandatoryInstructions}\n` : ''}Example response format:
@@ -156,9 +171,11 @@ ${tagContext}`,
             ],
             maxRetries: 2,
           });
-          logger.info(`AI Result:`, {
+          const cost = calculateAICost(aiResult.usage, selectedModel.name);
+          logger.info(`AI Result (${selectedModel.name}):`, {
             object: aiResult.object,
             usage: aiResult.usage,
+            cost: `$${cost.toFixed(10)}`,
           });
         } catch (aiError) {
           logger.error(`AI tagging failed for ${imageUrl}:`, { aiError });
@@ -252,3 +269,39 @@ ${tagContext}`,
     };
   },
 });
+
+// Utility function to calculate AI API cost
+function calculateAICost(usage: any, model: string): number {
+  // Pricing per 1K tokens (latest as of Sept 2025)
+  const pricing: Record<string, { input: number; output: number }> = {
+    // OpenAI GPT-4o pricing
+    "gpt-4o": { input: 0.005, output: 0.015 }, 
+    // $5.00 per 1M input tokens, $15.00 per 1M output tokens
+
+    "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
+    // $0.15 per 1M input tokens, $0.60 per 1M output tokens
+
+    // Google Gemini pricing (per 1K tokens)
+    "gemini-2.5-flash": { input: 0.0003, output: 0.0025 }, 
+    // $0.30 per 1M input tokens, $2.50 per 1M output tokens
+
+    "gemini-2.5-flash-lite": { input: 0.0001, output: 0.0004 },
+    // $0.10 per 1M input tokens, $0.40 per 1M output tokens
+  };
+
+  const modelPricing = pricing[model];
+  if (!modelPricing) {
+    console.warn(`Unknown model pricing for: ${model}`);
+    return 0;
+  }
+
+  const inputTokens = usage?.promptTokens || 0;
+  const outputTokens = usage?.completionTokens || 0;
+
+  // Calculate cost in dollars
+  const inputCost = (inputTokens / 1000) * modelPricing.input;
+  const outputCost = (outputTokens / 1000) * modelPricing.output;
+  const totalCost = inputCost + outputCost;
+
+  return totalCost;
+}

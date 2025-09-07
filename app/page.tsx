@@ -1,7 +1,9 @@
+import { Suspense } from "react";
+
 import { ImageGallery } from "@/components/images/image-gallery";
 import { TagsFiltersListing } from "@/components/images/tags-filters-listing";
 import { db } from "@/utils/kysely/client";
-import { Suspense } from "react";
+
 
 export default async function HomePage() {
   const tags = await db.selectFrom("tags").selectAll().execute();
