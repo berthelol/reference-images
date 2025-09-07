@@ -4,8 +4,9 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
-import { XIcon } from "lucide-react";
+import { XIcon, Search } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { TagSupabase } from "@/types/supabase-compute";
 
@@ -15,6 +16,7 @@ type TagsFiltersListingProps = {
 
 export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
   const [tagsFilters, setTags] = useQueryState("tags", filtersNuqsParsers.tags);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   const onTagToggle = (tagId: string) => {
     setTags((prev) =>
@@ -24,9 +26,16 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
     );
   };
 
-  // Group tags by master tags
+  // Group tags by master tags and apply search filter
   const groupedTags = React.useMemo(() => {
     if (!tags || tags.length === 0) return { masterTags: [], subTags: {} };
+
+    // Filter tags by search query first
+    const filteredTags = searchQuery
+      ? tags.filter((tag) =>
+          tag.title?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : tags;
 
     const masterTags: any[] = [];
     const subTags: { [key: string]: any[] } = {};
@@ -36,20 +45,44 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
 
     if (hasMasterTagId) {
       // Use database relationships
-      tags.forEach((tag: any) => {
+      const masterTagIds = new Set();
+
+      // First pass: identify master tags that have matching sub-tags or match themselves
+      filteredTags.forEach((tag: any) => {
         if (!tag.master_tag_id) {
-          // This is a master tag
+          // This is a master tag that matches search
+          masterTags.push(tag);
+          subTags[tag.id] = [];
+          masterTagIds.add(tag.id);
+        } else if (tag.master_tag_id) {
+          // This is a sub tag that matches search, include its master
+          masterTagIds.add(tag.master_tag_id);
+        }
+      });
+
+      // Add master tags that weren't directly matched but have matching sub-tags
+      tags.forEach((tag: any) => {
+        if (!tag.master_tag_id && masterTagIds.has(tag.id) && !masterTags.find(m => m.id === tag.id)) {
           masterTags.push(tag);
           subTags[tag.id] = [];
         }
       });
 
-      tags.forEach((tag: any) => {
-        if (tag.master_tag_id && subTags[tag.master_tag_id]) {
-          // This is a sub tag
+      // Second pass: populate sub-tags
+      filteredTags.forEach((tag: any) => {
+        if (tag.master_tag_id && subTags[tag.master_tag_id] !== undefined) {
           subTags[tag.master_tag_id].push(tag);
         }
       });
+
+      // Filter out master tags that have no sub-tags and don't match search themselves
+      const filteredMasterTags = masterTags.filter(masterTag => 
+        subTags[masterTag.id].length > 0 || 
+        !searchQuery || 
+        masterTag.title?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      return { masterTags: filteredMasterTags, subTags };
     } else {
       // Fallback: Create a simple "All Tags" category for now
       const allTagsCategory = {
@@ -58,18 +91,48 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
         created_at: new Date().toISOString(),
       };
       masterTags.push(allTagsCategory);
-      subTags["all"] = tags;
+      subTags["all"] = filteredTags;
+
+      return { masterTags, subTags };
     }
-
-    return { masterTags, subTags };
-  }, [tags]);
-
-  console.log("TAGS", { tagsFilters, tags, groupedTags });
+  }, [tags, searchQuery]);
 
   return (
     <div className="sticky top-8">
       <div className="space-y-6">
-        <h2 className="text-lg font-semibold">Filter by Tags</h2>
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Filter by Tags</h2>
+          
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              placeholder="Search tags..."
+              value={searchQuery}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            {searchQuery && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                onClick={() => setSearchQuery("")}
+              >
+                <XIcon className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Search Results Info */}
+        {searchQuery && (
+          <div className="text-xs text-muted-foreground">
+            {groupedTags.masterTags.reduce((total, masterTag) => 
+              total + (groupedTags.subTags[masterTag.id]?.length || 0), 0
+            )} tags found
+          </div>
+        )}
 
         {groupedTags.masterTags.map((masterTag: any) => (
           <div key={masterTag.id} className="space-y-3">
@@ -104,15 +167,20 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
         ))}
       </div>
 
-      <Button
-        onClick={() => setTags([])}
-        variant="outline"
-        size="sm"
-        className="mt-4 w-full"
-      >
-        <XIcon className="w-4 h-4 mr-2" />
-        Clear Filters
-      </Button>
+      {(tagsFilters?.length || searchQuery) && (
+        <Button
+          onClick={() => {
+            setTags([]);
+            setSearchQuery("");
+          }}
+          variant="outline"
+          size="sm"
+          className="mt-4 w-full"
+        >
+          <XIcon className="w-4 h-4 mr-2" />
+          Clear All
+        </Button>
+      )}
     </div>
   );
 }
