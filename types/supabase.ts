@@ -72,18 +72,24 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_mandatory_category: boolean | null
+          is_validated: boolean | null
           master_tag_id: string | null
           title: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          is_mandatory_category?: boolean | null
+          is_validated?: boolean | null
           master_tag_id?: string | null
           title?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          is_mandatory_category?: boolean | null
+          is_validated?: boolean | null
           master_tag_id?: string | null
           title?: string | null
         }
@@ -235,12 +241,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
-// Custom types for application use
-export type ReferenceImage = Tables<'images'>
-export type Tag = Tables<'tags'>
-
-export interface ReferenceImageWithTags extends ReferenceImage {
-  url: string
-  tags: Tag[]
-}

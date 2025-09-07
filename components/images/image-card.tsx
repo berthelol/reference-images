@@ -17,7 +17,7 @@ export function ImageCard({ image }: ImageCardProps) {
 
   const copyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(getImageUrl(image));
+      await navigator.clipboard.writeText(getImageUrl(image.id));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -27,7 +27,7 @@ export function ImageCard({ image }: ImageCardProps) {
 
   const downloadImage = () => {
     const link = document.createElement("a");
-    link.href = getImageUrl(image);
+    link.href = getImageUrl(image.id);
     link.download = `reference-image-${image.id}`;
     link.target = "_blank";
     document.body.appendChild(link);
@@ -36,15 +36,15 @@ export function ImageCard({ image }: ImageCardProps) {
   };
 
   const openInNewTab = () => {
-    window.open(getImageUrl(image), "_blank");
+    window.open(getImageUrl(image.id), "_blank");
   };
 
   return (
     <div className="bg-card border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <div className="relative aspect-square">
         <ImageWithFallback
-          src={getImageUrl(image)}
-          alt={`Reference image ${image.id}`}
+          src={getImageUrl(image?.id)}
+          alt={`Reference image ${image?.id}`}
           fill
           className="object-cover"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

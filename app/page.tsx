@@ -1,9 +1,10 @@
 import { ImageGallery } from "@/components/images/image-gallery";
 import { TagsFiltersListing } from "@/components/images/tags-filters-listing";
-import { supabaseAdmin } from "@/utils/supabase/admin";
+import { db } from "@/utils/kysely/client";
+import { Suspense } from "react";
 
 export default async function HomePage() {
-  const { data: tags } = await supabaseAdmin.from("tags").select("*");
+  const tags = await db.selectFrom("tags").selectAll().execute();
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -15,11 +16,15 @@ export default async function HomePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">
-          <TagsFiltersListing tags={tags || []} />
+          <Suspense fallback={<div className="animate-pulse bg-muted rounded h-64" />}>
+            <TagsFiltersListing tags={tags} />
+          </Suspense>
         </div>
 
         <div className="lg:col-span-3">
-          <ImageGallery />
+          <Suspense fallback={<div className="animate-pulse bg-muted rounded h-64" />}>
+            <ImageGallery />
+          </Suspense>
         </div>
       </div>
     </div>

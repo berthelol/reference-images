@@ -1,4 +1,6 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { syncVercelEnvVars } from "@trigger.dev/build/extensions/core";
+
 
 export default defineConfig({
   // Your project ref from the Trigger.dev dashboard
@@ -21,9 +23,12 @@ export default defineConfig({
 
   // Build configuration (optional)
   build: {
-    extensions: [], // Build extensions go here
+    extensions: [syncVercelEnvVars()], // Build extensions go here
+    external: ["sharp"], // Fix sharp dependency
   },
 
   // Max duration of a task in seconds
   maxDuration: 3600,
+
+  
 });

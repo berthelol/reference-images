@@ -1,11 +1,11 @@
 [
     {
-      "name": "Format / Type of Content",
+      "name": "🎬 Format / Type of Content",
       "tags": [
         "UGC (User Generated Content)",
         "Static Ad",
         "Carousel Ad",
-        "Story / Vertical Ad",
+        "Story",
         "Banner",
         "Product Shot",
         "Mockup",
@@ -13,14 +13,14 @@
         "Lifestyle",
         "Stop Motion",
         "3D Render",
-        "GIF / Animation",
         "Print Ad",
         "Billboard",
         "Packaging"
-      ]
+      ],
+      "mandatory": true
     },
     {
-      "name": "Environment",
+      "name": "🏖️ Environment",
       "tags": [
         "Indoor Housing",
         "Outdoor Housing",
@@ -41,7 +41,7 @@
       ]
     },
     {
-      "name": "Product Category",
+      "name": "🛍️ Product Category",
       "tags": [
         "Food",
         "Drinks / Beverages",
@@ -62,7 +62,7 @@
       ]
     },
     {
-      "name": "Style / Aesthetic",
+      "name": "👨‍🎨 Style / Aesthetic",
       "tags": [
         "Minimalist",
         "Maximalist",
@@ -83,7 +83,7 @@
       ]
     },
     {
-      "name": "Photography Style",
+      "name": "📸 Photography Style",
       "tags": [
         "Portrait",
         "Close-up / Macro",
@@ -103,7 +103,7 @@
       ]
     },
     {
-      "name": "Lighting",
+      "name": "🔆 Lighting",
       "tags": [
         "Natural Light",
         "Studio Light",
@@ -123,7 +123,7 @@
       ]
     },
     {
-      "name": "Audience / Tone",
+      "name": "🖼️ Audience / Tone",
       "tags": [
         "Luxury",
         "Affordable / Mass Market",
@@ -143,7 +143,7 @@
       ]
     },
     {
-      "name": "Colors / Palette",
+      "name": "🎨 Colors / Palette",
       "tags": [
         "Black & White",
         "Neutral Tones",
@@ -158,7 +158,7 @@
       ]
     },
     {
-      "name": "Season / Occasion",
+      "name": "🎄 Season / Occasion",
       "tags": [
         "Spring",
         "Summer",
@@ -178,7 +178,7 @@
       ]
     },
     {
-      "name": "People / Models",
+      "name": "👥 People / Models",
       "tags": [
         "No People",
         "Single Person",
