@@ -9,7 +9,6 @@ import { supabaseAdmin } from "@/utils/supabase/admin";
 import { db } from "@/utils/kysely/client";
 import { getImageUrl } from "@/utils/images/helper";
 
-
 // TODO
 
 // 1
@@ -20,17 +19,20 @@ import { getImageUrl } from "@/utils/images/helper";
 
 export const processImageTask = task({
   id: "process-image",
-  run: async (payload: { imageUrls: string[]; model?: "openai" | "gemini" }) => {
+  run: async (payload: {
+    imageUrls: string[];
+    model?: "openai" | "gemini";
+  }) => {
     // Model configuration
     const modelConfig = {
       openai: {
         provider: openai("gpt-4o"),
-        name: "gpt-4o"
+        name: "gpt-4o",
       },
       gemini: {
         provider: google("gemini-2.5-flash"),
-        name: "gemini-2.5-flash"
-      }
+        name: "gemini-2.5-flash",
+      },
     };
 
     const selectedModel = modelConfig[payload.model || "openai"];
@@ -46,16 +48,19 @@ export const processImageTask = task({
         "t.title",
         "t.master_tag_id",
         "mt.title as master_tag_title",
-        "mt.is_mandatory_category"
+        "mt.is_mandatory_category",
       ])
       .execute();
 
     // Group tags by master category
-    const tagsByMaster = new Map<string, {
-      masterTitle: string;
-      isMandatory: boolean;
-      tags: { id: string; title: string }[];
-    }>();
+    const tagsByMaster = new Map<
+      string,
+      {
+        masterTitle: string;
+        isMandatory: boolean;
+        tags: { id: string; title: string }[];
+      }
+    >();
 
     // Handle tags with master categories
     tags.forEach((tag: any) => {
@@ -65,12 +70,12 @@ export const processImageTask = task({
           tagsByMaster.set(masterKey, {
             masterTitle: tag.master_tag_title,
             isMandatory: tag.is_mandatory_category || false,
-            tags: []
+            tags: [],
           });
         }
         tagsByMaster.get(masterKey)!.tags.push({
           id: tag.id,
-          title: tag.title
+          title: tag.title,
         });
       }
     });
@@ -84,9 +89,9 @@ export const processImageTask = task({
 
     // Add master categories
     for (const [masterId, category] of Array.from(tagsByMaster)) {
-      tagContext += `\n${category.masterTitle.toUpperCase()}\n`;
-      category.tags.forEach(tag => {
-        tagContext += `${tag.title}: ${tag.id}\n`;
+      tagContext += `\n${category.masterTitle.toUpperCase()} - Parent Tag ID: ${masterId}\n`;
+      category.tags.forEach((tag) => {
+        tagContext += `${tag.title} –– Tag ID: ${tag.id}\n`;
       });
 
       if (category.isMandatory) {
@@ -110,7 +115,9 @@ export const processImageTask = task({
         // Skip SVG and GIF files
         const urlLower = imageUrl.toLowerCase();
         if (urlLower.includes(".svg") || urlLower.includes(".gif")) {
-          logger.info(`Skipping ${imageUrl} - SVG/GIF not supported`, { imageUrl });
+          logger.info(`Skipping ${imageUrl} - SVG/GIF not supported`, {
+            imageUrl,
+          });
           continue;
         }
 
@@ -143,20 +150,59 @@ export const processImageTask = task({
               tagIds: z
                 .array(z.string())
                 .describe("Array of tag IDs that match the image content"),
+              confidences: z
+                .record(z.string(), z.number())
+                .describe("Map of tag IDs to confidences"),
+              proposedTags: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    parentTagId: z.string(),
+                    reasoning: z.string(),
+                  })
+                )
+                .describe("Array of proposed tags"),
             }),
 
             messages: [
+              {
+                role: "system",
+                content: `You are an image taxonomy specialist. Your FIRST priority is to return precise tags from the allowed list only.
+          Never invent IDs. If unsure, omit the tag. Prefer precision over recall. Output valid JSON only.`,
+              },
               {
                 role: "user",
                 content: [
                   {
                     type: "text",
-                    text: `Analyze this image and select the tags that best describe the image content from the list below.
-You must respond with a JSON object containing an array of tag IDs that best describe the image content.
+                    text: `
+Analyze the image and perform TWO tasks.
 
-${mandatoryInstructions ? `MANDATORY REQUIREMENTS:\n${mandatoryInstructions}\n` : ''}Example response format:
-{"tagIds": ["04dcf5a2-4890-4c0d-9988-2de02f2d4325", "another-uuid-here"]}
-If no tags match, return: {"tagIds": []}
+Task 1 — Canonical tag selection
+- Return tag IDs ONLY from the allowed list.
+- Only use tags Ids, do not return parent tag Ids.
+- Prefer precision over recall. If unsure about a tag, omit it.
+- Include a confidences map (0-1) for the IDs you selected.
+
+Task 2 — Propose NEW TAGS (optional)
+- ONLY if the taxonomy clearly lacks coverage.
+- Each proposal MUST include a parentTagId that exists in the allowed list.
+- Do NOT propose synonyms of existing tags; only propose genuinely new, useful concepts.
+
+
+${
+  mandatoryInstructions
+    ? `MANDATORY REQUIREMENTS:\n${mandatoryInstructions}\n`
+    : ""
+}
+RETURN JSON ONLY in this exact shape:
+{
+  "tagIds": ["<uuid>", "..."],
+  "confidences": { "<uuid>": 0.82, "...": 0.74 },
+  "proposedTags": [
+    { "name": "…", "parentTagId": "<uuid>", "reasoning": "…" }
+  ]
+}
 
 Available tags:
 ${tagContext}`,
@@ -228,13 +274,10 @@ ${tagContext}`,
         }
 
         if (finalTagIds.length !== aiResult.object.tagIds.length) {
-          logger.warn(
-            `Some invalid tag IDs filtered out.`, 
-            {
-              originalTagIds: aiResult.object.tagIds,
-              validTagIds: finalTagIds,
-            }
-          );
+          logger.warn(`Some invalid tag IDs filtered out.`, {
+            originalTagIds: aiResult.object.tagIds,
+            validTagIds: finalTagIds,
+          });
         }
 
         results.push({
@@ -247,8 +290,6 @@ ${tagContext}`,
           ),
           status: "completed",
         });
-
-        
       } catch (error) {
         logger.error(`Failed to process image ${imageUrl}:`, { error });
         results.push({
@@ -275,14 +316,14 @@ function calculateAICost(usage: any, model: string): number {
   // Pricing per 1K tokens (latest as of Sept 2025)
   const pricing: Record<string, { input: number; output: number }> = {
     // OpenAI GPT-4o pricing
-    "gpt-4o": { input: 0.005, output: 0.015 }, 
+    "gpt-4o": { input: 0.005, output: 0.015 },
     // $5.00 per 1M input tokens, $15.00 per 1M output tokens
 
     "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
     // $0.15 per 1M input tokens, $0.60 per 1M output tokens
 
     // Google Gemini pricing (per 1K tokens)
-    "gemini-2.5-flash": { input: 0.0003, output: 0.0025 }, 
+    "gemini-2.5-flash": { input: 0.0003, output: 0.0025 },
     // $0.30 per 1M input tokens, $2.50 per 1M output tokens
 
     "gemini-2.5-flash-lite": { input: 0.0001, output: 0.0004 },
