@@ -15,11 +15,15 @@ export const getAllImages = pub
     let query = db
       .selectFrom('images')
       .leftJoin('images-tags as it', 'it.image_id', 'images.id')
-      .leftJoin('tags', 'tags.id', 'it.tag_id')
+      .leftJoin('tags', (join) => join
+        .onRef('tags.id', '=', 'it.tag_id')
+        .on('tags.is_validated', '=', true)
+      )
       .select([
         'images.id',
         'images.created_at',
         'images.blur_data',
+        'images.aspect_ratio',
         // Aggregate tags into JSON array using PostgreSQL functions
         sql<any[]>`
           COALESCE(
@@ -34,15 +38,17 @@ export const getAllImages = pub
           )
         `.as('tags')
       ])
-      .groupBy(['images.id', 'images.created_at', 'images.blur_data'])
+      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio'])
 
     // Add filtering for specific tags (AND logic - image must have ALL specified tags)
     if (input.tagIds && input.tagIds.length > 0) {
       query = query
         .where('images.id', 'in', (eb) =>
           eb.selectFrom('images-tags as filter_it')
+            .innerJoin('tags as filter_tags', 'filter_tags.id', 'filter_it.tag_id')
             .select('filter_it.image_id')
             .where('filter_it.tag_id', 'in', input.tagIds!)
+            .where('filter_tags.is_validated', '=', true)
             .groupBy('filter_it.image_id')
             .having(sql`COUNT(DISTINCT filter_it.tag_id)`, '=', input.tagIds!.length)
         )

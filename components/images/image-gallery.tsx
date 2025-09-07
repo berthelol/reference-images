@@ -71,7 +71,7 @@ export function ImageGallery({}: ImageGalleryProps) {
   const rowVirtualizer = useVirtualizer({
     count: imageRows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 320, // Estimated height per row
+    estimateSize: () => 420, // Estimated height per row
     overscan: 2,
   });
 
@@ -107,11 +107,12 @@ export function ImageGallery({}: ImageGalleryProps) {
 
       <div
         ref={parentRef}
-        className="h-[600px] overflow-auto"
+        className="h-screen overflow-auto"
       >
         <div
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
+            //height: '100vh',
             width: '100%',
             position: 'relative',
           }}

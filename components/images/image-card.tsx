@@ -41,7 +41,12 @@ export function ImageCard({ image }: ImageCardProps) {
 
   return (
     <div className="bg-card border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      <div className="relative aspect-square">
+      <div 
+        className="relative"
+        style={{ 
+          aspectRatio: image?.aspect_ratio || 1 
+        }}
+      >
         <ImageWithFallback
           src={getImageUrl(image?.id)}
           placeholder={image?.blur_data ? 'blur' : 'empty'}

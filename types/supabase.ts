@@ -16,18 +16,21 @@ export type Database = {
     Tables: {
       images: {
         Row: {
+          aspect_ratio: number | null
           blur_data: string | null
           created_at: string
           id: string
           is_new: boolean | null
         }
         Insert: {
+          aspect_ratio?: number | null
           blur_data?: string | null
           created_at?: string
           id?: string
           is_new?: boolean | null
         }
         Update: {
+          aspect_ratio?: number | null
           blur_data?: string | null
           created_at?: string
           id?: string

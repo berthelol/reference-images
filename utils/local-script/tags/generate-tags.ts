@@ -1,8 +1,7 @@
 import { config } from 'dotenv'
 import { supabaseAdmin } from '@/utils/supabase/admin'
 import { db } from '@/utils/kysely/client'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import tags from './tags'
 
 config()
 
@@ -17,8 +16,8 @@ interface TagCategory {
 
 async function generateTags() {
 
-  const tagsJsonPath = join(__dirname, 'tags.json')
-  const tagsData: TagCategory[] = JSON.parse(readFileSync(tagsJsonPath, 'utf-8'))
+  
+  const tagsData: TagCategory[] = tags
 
   console.log('Starting tag generation...')
   console.log(`OVERRIDE mode: ${OVERRIDE ? 'ON - Will delete all existing tags' : 'OFF - Will only create non-existing tags'}`)

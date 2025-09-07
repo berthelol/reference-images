@@ -9,13 +9,6 @@ import { supabaseAdmin } from "@/utils/supabase/admin";
 import { db } from "@/utils/kysely/client";
 import { getImageUrl } from "@/utils/images/helper";
 
-// TODO
-
-// 1
-// Todo generate JSON Structure form the image
-// With variables to edit, that also can be
-
-// 2. If ai see more tags to push that are missing then send them to a queue to be validated
 
 export const processImageTask = task({
   id: "process-image",
@@ -111,7 +104,7 @@ export const processImageTask = task({
 
     for (const imageUrl of payload.imageUrls) {
       try {
-        logger.info(`Processing image`, { imageUrl });
+       
         // Skip SVG and GIF files
         const urlLower = imageUrl.toLowerCase();
         if (urlLower.includes(".svg") || urlLower.includes(".gif")) {
@@ -128,6 +121,12 @@ export const processImageTask = task({
         }
 
         const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+        // Get original image metadata for aspect ratio calculation
+        const metadata = await sharp(imageBuffer).metadata();
+        const originalWidth = metadata.width || 1;
+        const originalHeight = metadata.height || 1;
+        const aspectRatio = originalWidth / originalHeight;
 
         // Compress and convert to WebP
         const compressedBuffer = await sharp(imageBuffer)
@@ -219,7 +218,11 @@ ${tagContext}`,
           });
           const cost = calculateAICost(aiResult.usage, selectedModel.name);
           logger.info(`AI Result (${selectedModel.name}):`, {
+            url: imageUrl,
             object: aiResult.object,
+            aspectRatio: aspectRatio,
+            tags : aiResult.object.tagIds?.map((tagId: string) => tags.find((tag: any) => tag.id === tagId)?.title),
+            proposedTags : aiResult.object.proposedTags?.map((proposedTag: any) => proposedTag?.name),
             usage: aiResult.usage,
             cost: `$${cost.toFixed(10)}`,
           });
@@ -234,7 +237,7 @@ ${tagContext}`,
           .insertInto("images")
           .values({
             blur_data: blurData,
-            created_at: new Date().toISOString(),
+            aspect_ratio: aspectRatio,
           })
           .returning("id")
           .executeTakeFirstOrThrow();
@@ -262,6 +265,30 @@ ${tagContext}`,
                 validTagIds.includes(tagId)
               )
             : [];
+
+        // Handle proposed tags from AI if any
+        if (aiResult.object.proposedTags && aiResult.object.proposedTags.length > 0) {
+          for (const proposedTag of aiResult.object.proposedTags) {
+            try {
+              await db
+                .insertInto("tags")
+                .values({
+                  title: proposedTag.name,
+                  master_tag_id: proposedTag.parentTagId,
+                  is_validated: false,
+                })
+                .execute();
+              
+              logger.info(`Created unvalidated tag: ${proposedTag.name}`, {
+                parentTagId: proposedTag.parentTagId,
+                parentTagTitle: tags.find((tag: any) => tag.id === proposedTag.parentTagId)?.title,
+                reasoning: proposedTag.reasoning,
+              });
+            } catch (error) {
+              logger.error(`Failed to create proposed tag: ${proposedTag.name}`, { error });
+            }
+          }
+        }
 
         // Associate tags with the image
         if (finalTagIds.length > 0) {

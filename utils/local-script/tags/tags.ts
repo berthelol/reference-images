@@ -1,4 +1,4 @@
-[
+export default [
     {
       "name": "🎬 Format / Type of Content",
       "tags": [
@@ -42,6 +42,7 @@
     {
       "name": "🛍️ Product Category",
       "tags": [
+        "Mobile application",
         "Food",
         "Drinks / Beverages",
         "Cosmetics / Beauty",
