@@ -16,7 +16,6 @@ export function ImageGallery({}: ImageGalleryProps) {
   const {
     data: images,
     isLoading,
-    error,
   } = useQuery(
     orpc.images.getAll.queryOptions({
       queryKey: ["images", tagsFilters],
