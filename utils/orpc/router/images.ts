@@ -24,6 +24,7 @@ export const getAllImages = pub
         'images.created_at',
         'images.blur_data',
         'images.aspect_ratio',
+        'images.is_new',
         // Aggregate tags into JSON array using PostgreSQL functions
         sql<any[]>`
           COALESCE(

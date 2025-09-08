@@ -24,12 +24,11 @@ export function ImageGallery({}: ImageGalleryProps) {
   } = useInfiniteQuery({
     queryKey: ["images", tagsFilters],
     queryFn: async ({ pageParam }) => {
-      const result = await client.images.getAll({
+      return await client.images.getAll({
         tagIds: tagsFilters?.length ? tagsFilters : undefined,
         cursor: pageParam,
-        limit: 20,
+        limit: 40,
       });
-      return result;
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
@@ -45,10 +44,10 @@ export function ImageGallery({}: ImageGalleryProps) {
   const getColumns = () => {
     if (typeof window === 'undefined') return 4;
     const width = window.innerWidth;
-    if (width < 768) return 1;
-    if (width < 1024) return 2;
-    if (width < 1280) return 3;
-    return 4;
+    if (width < 640) return 2;
+    if (width < 1024) return 3;
+    if (width < 1536) return 4;
+    return 5;
   };
 
   const [columns, setColumns] = React.useState(getColumns);
@@ -59,20 +58,21 @@ export function ImageGallery({}: ImageGalleryProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Organize images into rows for virtualization
-  const imageRows = React.useMemo(() => {
-    const rows: ImageSupabaseWithTags[][] = [];
-    for (let i = 0; i < allImages.length; i += columns) {
-      rows.push(allImages.slice(i, i + columns) as ImageSupabaseWithTags[]);
-    }
-    return rows;
-  }, [allImages, columns]);
+  // Calculate item heights based on aspect ratio for masonry
+  const itemHeights = React.useMemo(() => {
+    const baseWidth = 280; // Base width for calculations
+    return allImages.map(image => {
+      const aspectRatio = image.aspect_ratio || 1;
+      return Math.round(baseWidth / aspectRatio) + 16; // Add padding
+    });
+  }, [allImages]);
 
   const rowVirtualizer = useVirtualizer({
-    count: imageRows.length,
+    count: allImages.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 420, // Estimated height per row
-    overscan: 2,
+    estimateSize: (i) => itemHeights[i] || 300,
+    overscan: 5,
+    lanes: columns,
   });
 
   // Check if we need to fetch more when scrolled near bottom
@@ -96,6 +96,7 @@ export function ImageGallery({}: ImageGalleryProps) {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const totalImages = allImages.length;
+  const columnWidth = 100 / columns;
 
   return (
     <div className="space-y-4">
@@ -112,43 +113,43 @@ export function ImageGallery({}: ImageGalleryProps) {
         <div
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
-            //height: '100vh',
             width: '100%',
             position: 'relative',
           }}
         >
           {isLoading ? (
             // Loading state
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="bg-muted aspect-square rounded-lg mb-4" />
-                  <div className="space-y-2">
-                    <div className="h-4 bg-muted rounded w-3/4" />
-                    <div className="h-4 bg-muted rounded w-1/2" />
-                  </div>
+            <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-4 p-4">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="animate-pulse mb-4 break-inside-avoid">
+                  <div 
+                    className="bg-muted rounded-lg" 
+                    style={{ 
+                      aspectRatio: Math.random() * 0.5 + 0.75 // Random aspect ratio for loading 
+                    }}
+                  />
                 </div>
               ))}
             </div>
           ) : (
-            // Virtualized rows
-            rowVirtualizer.getVirtualItems().map((virtualRow: any) => (
+            // Virtualized masonry items
+            rowVirtualizer.getVirtualItems().map((virtualItem) => (
               <div
-                key={virtualRow.key}
+                key={virtualItem.key}
                 style={{
                   position: 'absolute',
                   top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
+                  left: `${virtualItem.lane * columnWidth}%`,
+                  width: `${columnWidth}%`,
+                  height: `${itemHeights[virtualItem.index]}px`,
+                  transform: `translateY(${virtualItem.start}px)`,
+                  padding: '0 8px',
                 }}
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4">
-                  {imageRows[virtualRow.index]?.map((image: ImageSupabaseWithTags) => (
-                    <ImageCard key={image.id} image={image} />
-                  ))}
-                </div>
+                <ImageCard 
+                  key={allImages[virtualItem.index]?.id} 
+                  image={allImages[virtualItem.index]} 
+                />
               </div>
             ))
           )}

@@ -1,28 +1,21 @@
 "use client";
 
-import { Copy, Download, ExternalLink } from "lucide-react";
+import { Download, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 import { ImageSupabaseWithTags } from "@/types/supabase-compute";
 import { getImageUrl } from "@/utils/images/helper";
 import { ImageWithFallback } from "@/components/ui/image-with-fallback";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/utils/cn";
+import Link from "next/link";
 
 interface ImageCardProps {
   image: ImageSupabaseWithTags;
 }
 
 export function ImageCard({ image }: ImageCardProps) {
-  const [copied, setCopied] = useState(false);
-
-  const copyUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(getImageUrl(image.id));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy URL:", err);
-    }
+  const handleSave = () => {
+    console.log("Save image:", image.id);
   };
 
   const downloadImage = () => {
@@ -35,14 +28,12 @@ export function ImageCard({ image }: ImageCardProps) {
     document.body.removeChild(link);
   };
 
-  const openInNewTab = () => {
-    window.open(getImageUrl(image.id), "_blank");
-  };
+  console.log(image);
 
   return (
-    <div className="bg-card border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      <div 
-        className="relative"
+    <div className="relative group rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-4">
+      <Link target="_blank" href={getImageUrl(image.id) as any} 
+        className="relative w-full block"
         style={{ 
           aspectRatio: image?.aspect_ratio || 1 
         }}
@@ -54,41 +45,75 @@ export function ImageCard({ image }: ImageCardProps) {
           alt={`Reference image ${image?.id}`}
           fill
           className="object-cover"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1536px) 25vw, 20vw"
         />
-      </div>
 
-      <div className="p-4 space-y-3">
-        {image.tags && image.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {image.tags.map((tag) => (
-              <Badge key={tag.id} variant="secondary" className="text-xs">
-                {tag.title}
-              </Badge>
-            ))}
+        {/* New badge - always visible */}
+        {image.is_new && (
+          <div className="absolute top-2 left-2">
+            <Badge 
+              variant="secondary" 
+              className="text-xs font-semibold shadow-sm text-black"
+            >
+              NEW
+            </Badge>
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button
-            onClick={copyUrl}
-            variant="outline"
-            size="sm"
-            className="flex-1"
-          >
-            <Copy className="w-4 h-4 mr-2" />
-            {copied ? "Copied!" : "Copy URL"}
-          </Button>
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {/* Actions in top right */}
+          <div className="absolute top-2 right-2 flex gap-2">
+            <Button
+              onClick={handleSave}
+              size="sm"
+              variant="secondary"
+              className={cn(
+                "h-8 w-8 p-0 bg-white/90 hover:bg-white"
+              )}
+            >
+              <Heart className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={downloadImage}
+              size="sm"
+              variant="secondary"
+              className={cn(
+                "h-8 w-8 p-0 bg-white/90 hover:bg-white"
+              )}
+            >
+              <Download className="w-4 h-4" />
+            </Button>
+          </div>
 
-          <Button onClick={downloadImage} variant="outline" size="sm">
-            <Download className="w-4 h-4" />
-          </Button>
-
-          <Button onClick={openInNewTab} variant="outline" size="sm">
-            <ExternalLink className="w-4 h-4" />
-          </Button>
+          {/* Tags in bottom left */}
+          {image.tags && image.tags.length > 0 && (
+            <div className="absolute bottom-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-1rem)]">
+              {image.tags.slice(0, 3).map((tag) => (
+                <Badge 
+                  key={tag.id} 
+                  variant="secondary" 
+                  className={cn(
+                    "text-xs bg-white/90 text-black hover:bg-white"
+                  )}
+                >
+                  {tag.title}
+                </Badge>
+              ))}
+              {image.tags.length > 3 && (
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    "text-xs bg-white/90 text-black"
+                  )}
+                >
+                  +{image.tags.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      </Link>
     </div>
   );
 }

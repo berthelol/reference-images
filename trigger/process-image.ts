@@ -43,6 +43,7 @@ export const processImageTask = task({
         "mt.title as master_tag_title",
         "mt.is_mandatory_category",
       ])
+      .where("t.is_validated", "=", true)
       .execute();
 
     // Group tags by master category
@@ -130,7 +131,7 @@ export const processImageTask = task({
 
         // Compress and convert to WebP
         const compressedBuffer = await sharp(imageBuffer)
-          .webp({ quality: 80 })
+          .webp({ quality: 100 })
           .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
           .toBuffer();
 
