@@ -53,6 +53,7 @@ export const getAllImages = pub
     z.object({
       tagIds: z.array(z.string()).optional(),
       aspectRatios: z.array(z.string()).optional(),
+      search: z.string().optional(),
       limit: z.number().min(1).max(100).default(20),
       cursor: z.string().optional(),
     })
@@ -106,6 +107,14 @@ export const getAllImages = pub
     // Add filtering for specific aspect ratios (OR logic - image can have ANY of the specified ratios)
     if (input.aspectRatios && input.aspectRatios.length > 0) {
       query = query.where('images.aspect_ratio', 'in', input.aspectRatios)
+    }
+
+    // Add vector search functionality (search only in vector_description)
+    if (input.search && input.search.trim().length > 0) {
+      const searchTerm = input.search.trim()
+      query = query.where(
+        sql<any>`images.vector_description @@ plainto_tsquery('english', ${searchTerm})` 
+      )
     }
 
     // Add cursor-based pagination

@@ -184,8 +184,8 @@ export const processImageTask = task({
             messages: [
               {
                 role: "system",
-                content: `You are an image taxonomy specialist. Your FIRST priority is to return precise tags from the allowed list only.
-          Never invent IDs. If unsure, omit the tag. Prefer precision over recall. Output valid JSON only.`,
+                content: `You are an image taxonomy specialist. Your FIRST priority is to return comprehensive tags from the allowed list only.
+          Never invent IDs. When in doubt, include the tag if it's reasonably applicable. Prefer recall over precision - it's better to include more relevant tags than to miss important ones. Output valid JSON only.`,
               },
               {
                 role: "user",
@@ -198,8 +198,9 @@ Analyze the image and perform THREE tasks.
 Task 1 — Canonical tag selection
 - Return tag IDs ONLY from the allowed list.
 - Only use tags Ids, do not return parent tag Ids.
-- Prefer precision over recall. If unsure about a tag, omit it.
-- Include a confidences map (0-1) for the IDs you selected.
+- Be generous with tag selection - include any tag that could reasonably apply to the image.
+- If you see elements, styles, themes, or concepts that match available tags, include them.
+- Include a confidences map (0-1) for the IDs you selected. Even tags with moderate confidence (0.4+) should be included.
 
 Task 2 — Image Description
 - Describe the image context, environment, scene setting, and visual layout.

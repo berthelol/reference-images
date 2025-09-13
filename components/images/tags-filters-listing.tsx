@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
-import { XIcon, Search } from "lucide-react";
+import { XIcon, Search, Sparkles } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { TagSupabase } from "@/types/supabase-compute";
 import { STANDARD_ASPECT_RATIOS } from "@/utils/data/aspect-ratios";
@@ -17,7 +17,14 @@ type TagsFiltersListingProps = {
 
 export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
   const [tagsFilters, setTags] = useQueryState("tags", filtersNuqsParsers.tags);
-  const [aspectRatiosFilters, setAspectRatios] = useQueryState("aspectRatios", filtersNuqsParsers.aspectRatios);
+  const [aspectRatiosFilters, setAspectRatios] = useQueryState(
+    "aspectRatios",
+    filtersNuqsParsers.aspectRatios
+  );
+  const [vectorSearch, setVectorSearch] = useQueryState(
+    "search",
+    filtersNuqsParsers.search
+  );
   const [searchQuery, setSearchQuery] = React.useState("");
 
   const onTagToggle = (tagId: string) => {
@@ -72,7 +79,11 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
 
       // Add master tags that weren't directly matched but have matching sub-tags
       tags.forEach((tag: any) => {
-        if (!tag.master_tag_id && masterTagIds.has(tag.id) && !masterTags.find(m => m.id === tag.id)) {
+        if (
+          !tag.master_tag_id &&
+          masterTagIds.has(tag.id) &&
+          !masterTags.find((m) => m.id === tag.id)
+        ) {
           masterTags.push(tag);
           subTags[tag.id] = [];
         }
@@ -86,10 +97,11 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
       });
 
       // Filter out master tags that have no sub-tags and don't match search themselves
-      const filteredMasterTags = masterTags.filter(masterTag => 
-        subTags[masterTag.id].length > 0 || 
-        !searchQuery || 
-        masterTag.title?.toLowerCase().includes(searchQuery.toLowerCase())
+      const filteredMasterTags = masterTags.filter(
+        (masterTag) =>
+          subTags[masterTag.id].length > 0 ||
+          !searchQuery ||
+          masterTag.title?.toLowerCase().includes(searchQuery.toLowerCase())
       );
 
       return { masterTags: filteredMasterTags, subTags };
@@ -111,15 +123,38 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
     <div className="sticky top-8">
       <div className="space-y-6">
         <div className="space-y-3">
+          {/* Vector Search Input */}
+          <div className="relative">
+            <Sparkles className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              placeholder="AI-powered search..."
+              value={vectorSearch || ""}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setVectorSearch(e.target.value || null)
+              }
+              className="pl-9"
+            />
+            {vectorSearch && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                onClick={() => setVectorSearch(null)}
+              >
+                <XIcon className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
           <h2 className="text-lg font-semibold">Filter by Tags</h2>
-          
-          {/* Search Input */}
+          {/* Tag Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               placeholder="Search tags..."
               value={searchQuery}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setSearchQuery(e.target.value)
+              }
               className="pl-9"
             />
             {searchQuery && (
@@ -135,20 +170,9 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
           </div>
         </div>
 
-        {/* Search Results Info */}
-        {searchQuery && (
-          <div className="text-xs text-muted-foreground">
-            {groupedTags.masterTags.reduce((total, masterTag) =>
-              total + (groupedTags.subTags[masterTag.id]?.length || 0), 0
-            )} tags found
-          </div>
-        )}
-
         {/* Aspect Ratio Filters */}
         <div className="space-y-3">
-          <h3 className="text-sm font-medium border-b pb-1">
-            Aspect Ratios
-          </h3>
+          <h3 className="text-sm font-medium border-b pb-1">Aspect Ratios</h3>
           <div className="flex flex-wrap gap-2">
             {STANDARD_ASPECT_RATIOS.map((ratio) => (
               <label
@@ -161,7 +185,9 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
                 />
                 <Badge
                   variant={
-                    aspectRatiosFilters?.includes(ratio.name) ? "default" : "secondary"
+                    aspectRatiosFilters?.includes(ratio.name)
+                      ? "default"
+                      : "secondary"
                   }
                   className="cursor-pointer"
                 >
@@ -196,7 +222,7 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
                     }
                     className="cursor-pointer"
                   >
-                    {`${tag.title} (${tag.time_used|| 0})`}
+                    {`${tag.title} (${tag.time_used || 0})`}
                   </Badge>
                 </label>
               ))}
@@ -205,12 +231,16 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
         ))}
       </div>
 
-      {(tagsFilters?.length || aspectRatiosFilters?.length || searchQuery) && (
+      {(tagsFilters?.length ||
+        aspectRatiosFilters?.length ||
+        searchQuery ||
+        vectorSearch) && (
         <Button
           onClick={() => {
             setTags([]);
             setAspectRatios([]);
             setSearchQuery("");
+            setVectorSearch(null);
           }}
           variant="outline"
           size="sm"

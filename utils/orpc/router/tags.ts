@@ -42,3 +42,21 @@ export const validateTag = pub
 
     return { success: true };
   });
+
+export const deleteTag = pub
+  .input(z.object({ tagId: z.string() }))
+  .handler(async ({ input }) => {
+    // First, delete any image-tag associations
+    await db
+      .deleteFrom("images-tags")
+      .where("tag_id", "=", input.tagId)
+      .execute();
+
+    // Then delete the tag itself
+    await db
+      .deleteFrom("tags")
+      .where("id", "=", input.tagId)
+      .execute();
+
+    return { success: true };
+  });

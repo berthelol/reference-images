@@ -7,13 +7,13 @@ import { client } from "@/utils/orpc";
 import { ImageCard } from "@/components/images/image-card";
 import { useQueryState } from "nuqs";
 import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
-import { ImageSupabaseWithTags } from "@/types/supabase-compute";
 import { getAspectRatioValue } from "@/utils/data/aspect-ratios";
 
 interface ImageGalleryProps {}
 
 export function ImageGallery({}: ImageGalleryProps) {
   const [tagsFilters] = useQueryState("tags", filtersNuqsParsers.tags);
+  const [search] = useQueryState("search", filtersNuqsParsers.search);
   const [aspectRatiosFilters] = useQueryState("aspectRatios", filtersNuqsParsers.aspectRatios);
   const parentRef = React.useRef<HTMLDivElement>(null);
 
@@ -24,11 +24,12 @@ export function ImageGallery({}: ImageGalleryProps) {
     hasNextPage,
     fetchNextPage,
   } = useInfiniteQuery({
-    queryKey: ["images", tagsFilters, aspectRatiosFilters],
+    queryKey: ["images", tagsFilters, aspectRatiosFilters, search],
     queryFn: async ({ pageParam }) => {
       return await client.images.getAll({
         tagIds: tagsFilters?.length ? tagsFilters : undefined,
         aspectRatios: aspectRatiosFilters?.length ? aspectRatiosFilters : undefined,
+        search: search || undefined,
         cursor: pageParam,
         limit: 40,
       });

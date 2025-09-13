@@ -1,5 +1,5 @@
 import { getAllImages, getImageById } from "@/utils/orpc/router/images";
-import { getAllTags, getUnvalidatedTags, validateTag } from "@/utils/orpc/router/tags";
+import { getAllTags, getUnvalidatedTags, validateTag, deleteTag } from "@/utils/orpc/router/tags";
 import { processImages } from "@/utils/orpc/router/admin";
 
 export const router = {
@@ -11,6 +11,7 @@ export const router = {
     getAll: getAllTags,
     getUnvalidated: getUnvalidatedTags,
     validate: validateTag,
+    delete: deleteTag,
   },
   admin: {
     processImages,

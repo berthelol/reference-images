@@ -18,11 +18,13 @@ export const filtersNuqsParsers = {
   aspectRatios: parseAsArrayOf(parseAsString),
   rangeDate: parseAsArrayOf(parseAsIsoDate),
   boolean: parseAsBoolean,
+  search: parseAsString,
 };
 
 export const videosSearchParamsParser = {
   tags: filtersNuqsParsers.tags,
   aspectRatios: filtersNuqsParsers.aspectRatios,
+  search: filtersNuqsParsers.search,
 
   // sorting
   sort_column: parseAsStringEnum(Object.values(ImageSortColumn)),
