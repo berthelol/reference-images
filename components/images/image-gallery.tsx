@@ -7,7 +7,7 @@ import { client } from "@/utils/orpc";
 import { ImageCard } from "@/components/images/image-card";
 import { useQueryState } from "nuqs";
 import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
-import { getAspectRatioValue } from "@/utils/data/aspect-ratios";
+import { getAspectRatioValue } from "@/utils/images/aspect-ratios";
 
 interface ImageGalleryProps {}
 

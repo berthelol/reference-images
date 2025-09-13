@@ -9,7 +9,7 @@ import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
 import { XIcon, Search, Sparkles } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { TagSupabase } from "@/types/supabase-compute";
-import { STANDARD_ASPECT_RATIOS } from "@/utils/data/aspect-ratios";
+import { STANDARD_ASPECT_RATIOS, AspectRatioIcons } from "@/utils/images/aspect-ratios";
 
 type TagsFiltersListingProps = {
   tags: TagSupabase[];
@@ -189,8 +189,9 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
                       ? "default"
                       : "secondary"
                   }
-                  className="cursor-pointer"
+                  className="cursor-pointer flex items-center gap-1"
                 >
+                  {AspectRatioIcons[ratio.name as keyof typeof AspectRatioIcons]}
                   {ratio.name}
                 </Badge>
               </label>

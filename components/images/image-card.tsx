@@ -7,7 +7,7 @@ import { getImageUrl } from "@/utils/images/helper";
 import { ImageWithFallback } from "@/components/ui/image-with-fallback";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/utils/cn";
-import { getAspectRatioValue } from "@/utils/data/aspect-ratios";
+import { getAspectRatioValue } from "@/utils/images/aspect-ratios";
 import { useQueryState } from "nuqs";
 import { toast } from "sonner";
 

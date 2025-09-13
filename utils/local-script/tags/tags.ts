@@ -4,7 +4,6 @@ export default [
       "tags": [
         "UGC (User Generated Content)",
         "Static Ad",
-        "Story",
         "Banner",
         "Product Shot",
         "Mockup",

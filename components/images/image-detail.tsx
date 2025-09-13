@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { getImageUrl } from "@/utils/images/helper";
 import { ImageWithFallback } from "@/components/ui/image-with-fallback";
 import { Badge } from "@/components/ui/badge";
-import { getAspectRatioValue } from "@/utils/data/aspect-ratios";
+import { getAspectRatioValue } from "@/utils/images/aspect-ratios";
 import { useQuery } from "@tanstack/react-query";
 import { client } from "@/utils/orpc";
 import { toast } from "sonner";

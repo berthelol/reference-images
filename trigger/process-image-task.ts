@@ -8,7 +8,7 @@ import { getPlaiceholder } from "plaiceholder";
 import { supabaseAdmin } from "@/utils/supabase/admin";
 import { db } from "@/utils/kysely/client";
 import { getImageUrl } from "@/utils/images/helper";
-import { findClosestAspectRatio } from "@/utils/data/aspect-ratios";
+import { findClosestAspectRatio } from "@/utils/images/aspect-ratios";
 
 export const processImageTask = task({
   id: "process-image",
