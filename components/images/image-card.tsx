@@ -7,19 +7,28 @@ import { getImageUrl } from "@/utils/images/helper";
 import { ImageWithFallback } from "@/components/ui/image-with-fallback";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/utils/cn";
-import Link from "next/link";
 import { getAspectRatioValue } from "@/utils/data/aspect-ratios";
+import { useQueryState } from "nuqs";
+import { toast } from "sonner";
 
 interface ImageCardProps {
   image: ImageSupabaseWithTags;
 }
 
 export function ImageCard({ image }: ImageCardProps) {
-  const handleSave = () => {
-    console.log("Save image:", image.id);
+  const [, setImageModal] = useQueryState("imageModal");
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toast("Coming soon", {
+      description: "Save functionality will be available soon!",
+    });
   };
 
-  const downloadImage = () => {
+  const downloadImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     const link = document.createElement("a");
     link.href = getImageUrl(image.id);
     link.download = `reference-image-${image.id}`;
@@ -29,9 +38,14 @@ export function ImageCard({ image }: ImageCardProps) {
     document.body.removeChild(link);
   };
 
+  const openImageModal = () => {
+    setImageModal(image.id);
+  };
+
   return (
     <div className="relative group rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-4">
-      <Link target="_blank" href={getImageUrl(image.id) as any} 
+      <div
+        onClick={openImageModal}
         className="relative w-full block"
         style={{
           aspectRatio: image?.aspect_ratio ? getAspectRatioValue(image.aspect_ratio as any) : 1
@@ -112,7 +126,7 @@ export function ImageCard({ image }: ImageCardProps) {
             </div>
           )}
         </div>
-      </Link>
+      </div>
     </div>
   );
 }

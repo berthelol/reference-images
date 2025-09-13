@@ -47,6 +47,8 @@ export const processImageTask = task({
       .where("t.is_validated", "=", true)
       .execute();
 
+    logger.info(`Tags:`, { tagsLength: tags.length });
+
     // Group tags by master category
     const tagsByMaster = new Map<
       string,
@@ -75,38 +77,22 @@ export const processImageTask = task({
       }
     });
 
-    // Handle standalone tags (no master category)
-    const standaloneTags = tags.filter((tag: any) => !tag.master_tag_id);
+    // Build the structured tag context as JSON
+    const tagContext = Array.from(tagsByMaster).map(([masterId, category]) => ({
+      id: masterId,
+      title: category.masterTitle,
+      isMandatory: category.isMandatory,
+      tags: category.tags,
+    }));
 
-    // Build the formatted tag context
-    let tagContext = "";
-    let mandatoryInstructions = "";
+    const mandatoryCategories = Array.from(tagsByMaster)
+      .filter(([_, category]) => category.isMandatory)
+      .map(([_, category]) => category.masterTitle);
 
-    // Add master categories
-    for (const [masterId, category] of Array.from(tagsByMaster)) {
-      tagContext += `\n${category.masterTitle.toUpperCase()} - Parent Tag ID: ${masterId}\n`;
-      category.tags.forEach((tag) => {
-        tagContext += `${tag.title} –– Tag ID: ${tag.id}\n`;
-      });
-
-      if (category.isMandatory) {
-        mandatoryInstructions += `- You MUST select at least one tag from "${category.masterTitle}" category\n`;
-      }
-    }
-
-    // Add standalone tags if any
-    if (standaloneTags.length > 0) {
-      tagContext += `\nOTHER TAGS\n`;
-      standaloneTags.forEach((tag: any) => {
-        tagContext += `${tag.title}: ${tag.id}\n`;
-      });
-    }
-
-    logger.info(`Tag Context:`, { tagContext });
+    logger.info(`Tag Context:`, { tagContext, mandatoryCategories });
 
     for (const imageUrl of payload.imageUrls) {
       try {
-       
         // Skip SVG and GIF files
         const urlLower = imageUrl.toLowerCase();
         if (urlLower.includes(".svg") || urlLower.includes(".gif")) {
@@ -152,11 +138,11 @@ export const processImageTask = task({
             left: Math.round((originalWidth - cropWidth) / 2),
             top: Math.round((originalHeight - cropHeight) / 2),
             width: cropWidth,
-            height: cropHeight
+            height: cropHeight,
           })
           .resize(1200, Math.round(1200 / normalizedAspectRatio), {
             fit: "inside",
-            withoutEnlargement: true
+            withoutEnlargement: true,
           })
           .webp({ quality: 100 })
           .toBuffer();
@@ -181,7 +167,9 @@ export const processImageTask = task({
                 .describe("Map of tag IDs to confidences"),
               description: z
                 .string()
-                .describe("A detailed description of the image content and visual elements"),
+                .describe(
+                  "A detailed description of the image content and visual elements"
+                ),
               proposedTags: z
                 .array(
                   z.object({
@@ -224,10 +212,16 @@ Task 3 — Propose NEW TAGS (optional)
 - Each proposal MUST include a parentTagId that exists in the allowed list.
 - Do NOT propose synonyms of existing tags; only propose genuinely new, useful concepts.
 
-
 ${
-  mandatoryInstructions
-    ? `MANDATORY REQUIREMENTS:\n${mandatoryInstructions}\n`
+  mandatoryCategories.length > 0
+    ? `MANDATORY REQUIREMENTS:\n${mandatoryCategories
+        .map(
+          (cat) => `- You MUST select at least one tag from "${cat}" category.
+    The Format / Type of Content can have multiple tags. For example it can be "Static ad" and "Discount / Promotion" at the same time, put both in the tagIds array.
+    Also you might receive a few static ads so don't hesitate to them as such.
+    `
+        )
+        .join("\n")}\n\n`
     : ""
 }
 RETURN JSON ONLY in this exact shape:
@@ -240,8 +234,8 @@ RETURN JSON ONLY in this exact shape:
   ]
 }
 
-Available tags:
-${tagContext}`,
+Available tags (JSON format):
+${JSON.stringify(tagContext, null, 2)}`,
                   },
                   {
                     type: "image",
@@ -258,10 +252,17 @@ ${tagContext}`,
             url: imageUrl,
             object: aiResult.object,
             originalAspectRatio: originalAspectRatio.toFixed(3),
-            normalizedAspectRatio: `${normalizedAspectRatio.toFixed(3)} (${closestRatio.name})`,
+            normalizedAspectRatio: `${normalizedAspectRatio.toFixed(3)} (${
+              closestRatio.name
+            })`,
             description: aiResult.object.description,
-            tags : aiResult.object.tagIds?.map((tagId: string) => tags.find((tag: any) => tag.id === tagId)?.title),
-            proposedTags : aiResult.object.proposedTags?.map((proposedTag: any) => proposedTag?.name),
+            tags: aiResult.object.tagIds?.map(
+              (tagId: string) =>
+                tags.find((tag: any) => tag.id === tagId)?.title
+            ),
+            proposedTags: aiResult.object.proposedTags?.map(
+              (proposedTag: any) => proposedTag?.name
+            ),
             usage: aiResult.usage,
             cost: `$${cost.toFixed(10)}`,
           });
@@ -307,7 +308,10 @@ ${tagContext}`,
             : [];
 
         // Handle proposed tags from AI if any
-        if (aiResult.object.proposedTags && aiResult.object.proposedTags.length > 0) {
+        if (
+          aiResult.object.proposedTags &&
+          aiResult.object.proposedTags.length > 0
+        ) {
           for (const proposedTag of aiResult.object.proposedTags) {
             try {
               await db
@@ -318,14 +322,19 @@ ${tagContext}`,
                   is_validated: false,
                 })
                 .execute();
-              
+
               logger.info(`Created unvalidated tag: ${proposedTag.name}`, {
                 parentTagId: proposedTag.parentTagId,
-                parentTagTitle: tags.find((tag: any) => tag.id === proposedTag.parentTagId)?.title,
+                parentTagTitle: tags.find(
+                  (tag: any) => tag.id === proposedTag.parentTagId
+                )?.title,
                 reasoning: proposedTag.reasoning,
               });
             } catch (error) {
-              logger.error(`Failed to create proposed tag: ${proposedTag.name}`, { error });
+              logger.error(
+                `Failed to create proposed tag: ${proposedTag.name}`,
+                { error }
+              );
             }
           }
         }

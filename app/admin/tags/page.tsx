@@ -26,12 +26,32 @@ export default function AdminTagsPage() {
     },
   });
 
+  const deleteTagMutation = useMutation({
+    mutationFn: (tagId: string) => client.tags.delete({ tagId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unvalidated-tags'] });
+    },
+  });
+
   const handleValidateTag = async (tagId: string) => {
     try {
       await validateTagMutation.mutateAsync(tagId);
     } catch (error) {
       console.error("Failed to validate tag:", error);
       alert("Failed to validate tag. Please try again.");
+    }
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    if (!confirm("Are you sure you want to delete this tag? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      await deleteTagMutation.mutateAsync(tagId);
+    } catch (error) {
+      console.error("Failed to delete tag:", error);
+      alert("Failed to delete tag. Please try again.");
     }
   };
 
@@ -118,23 +138,43 @@ export default function AdminTagsPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleValidateTag(tag.id)}
-                  disabled={validateTagMutation.isPending}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {validateTagMutation.isPending ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Validating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span></span>
-                      <span>Validate</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleValidateTag(tag.id)}
+                    disabled={validateTagMutation.isPending}
+                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {validateTagMutation.isPending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Validating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✓</span>
+                        <span>Validate</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteTag(tag.id)}
+                    disabled={deleteTagMutation.isPending}
+                    className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {deleteTagMutation.isPending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>×</span>
+                        <span>Delete</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           ))}

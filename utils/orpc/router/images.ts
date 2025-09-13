@@ -3,6 +3,51 @@ import { pub } from '@/utils/orpc/middlewares'
 import { db } from '@/utils/kysely/client'
 import { sql } from 'kysely'
 
+export const getImageById = pub
+  .input(z.object({
+    id: z.string()
+  }))
+  .handler(async ({ input }) => {
+    const result = await db
+      .selectFrom('images')
+      .leftJoin('images-tags as it', 'it.image_id', 'images.id')
+      .leftJoin('tags', (join) => join
+        .onRef('tags.id', '=', 'it.tag_id')
+        .on('tags.is_validated', '=', true)
+      )
+      .select([
+        'images.id',
+        'images.created_at',
+        'images.blur_data',
+        'images.aspect_ratio',
+        'images.description',
+        'images.is_new',
+        'images.vector_description',
+        // Aggregate tags into JSON array using PostgreSQL functions
+        sql<any[]>`
+          COALESCE(
+            JSON_AGG(
+              CASE
+                WHEN tags.id IS NOT NULL
+                THEN JSON_BUILD_OBJECT('id', tags.id, 'title', tags.title)
+                ELSE NULL
+              END
+            ) FILTER (WHERE tags.id IS NOT NULL),
+            '[]'::json
+          )
+        `.as('tags')
+      ])
+      .where('images.id', '=', input.id)
+      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.description', 'images.is_new', 'images.vector_description'])
+      .executeTakeFirst()
+
+    if (!result) {
+      throw new Error('Image not found')
+    }
+
+    return result
+  })
+
 export const getAllImages = pub
   .input(
     z.object({

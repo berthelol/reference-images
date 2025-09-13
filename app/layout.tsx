@@ -4,8 +4,14 @@ import './globals.css'
 import { QueryProvider } from '@/providers/query-provider'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { Toaster } from "@/components/ui/sonner"
+import dynamic from 'next/dynamic'
 
 const inter = Inter({ subsets: ['latin'] })
+
+const ImageSidebar = dynamic(() =>
+  import("@/components/sidebar/image-sidebar"),
+  { ssr: false }
+);
 
 export const metadata: Metadata = {
   title: 'Reference Images',
@@ -25,6 +31,7 @@ export default function RootLayout({
             <main className="min-h-screen bg-background">
               {children}
             </main>
+            <ImageSidebar />
             <Toaster />
           </QueryProvider>
         </NuqsAdapter>
