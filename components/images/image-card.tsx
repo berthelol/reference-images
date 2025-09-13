@@ -28,8 +28,6 @@ export function ImageCard({ image }: ImageCardProps) {
     document.body.removeChild(link);
   };
 
-  console.log(image);
-
   return (
     <div className="relative group rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-4">
       <Link target="_blank" href={getImageUrl(image.id) as any} 
