@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { client } from "@/utils/orpc";
+import { toast } from "sonner";
+import { createClient } from "@/utils/supabase/client";
+
 
 export default function AdminPage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -26,7 +29,7 @@ export default function AdminPage() {
     });
 
     if (validFiles.length !== selectedFiles.length) {
-      alert(`${selectedFiles.length - validFiles.length} SVG/GIF files were filtered out`);
+      toast.warning(`${selectedFiles.length - validFiles.length} SVG/GIF files were filtered out`);
     }
 
     setFiles(validFiles);
@@ -37,34 +40,48 @@ export default function AdminPage() {
 
     setUploading(true);
     setUploadResults([]);
-    
+
     try {
       const uploadPromises = files.map(async (file) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
+        // Generate unique filename with timestamp and original name
+        const timestamp = Date.now();
+        const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_"); // Sanitize filename
+        const tempFileName = `temp/${timestamp}_${originalName}`;
+
+        const supabase = createClient();
+        // Upload to Supabase storage using client
+        const { error } = await supabase.storage
+          .from("medias")
+          .upload(tempFileName, file, {
+            contentType: file.type,
+            upsert: false, // Don't overwrite existing files
+          });
+
+        if (error) {
+          console.error("Upload error:", error);
+          throw new Error(`Failed to upload ${file.name}: ${error.message}`);
         }
-        
-        const result = await response.json();
-        return result.url;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("medias")
+          .getPublicUrl(tempFileName);
+
+        return publicUrl;
       });
 
       const urls = await Promise.all(uploadPromises);
       setUploadResults(urls);
-      
+
+      // Show success toast
+      toast.success(`Successfully uploaded ${urls.length} images`);
+
       // Automatically trigger processing after upload
       await handleProcessImages(urls);
-      
+
     } catch (error) {
       console.error("Upload failed:", error);
-      alert("Upload failed. Please try again.");
+      toast.error("Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }

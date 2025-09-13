@@ -7,6 +7,7 @@ export const getAllImages = pub
   .input(
     z.object({
       tagIds: z.array(z.string()).optional(),
+      aspectRatios: z.array(z.string()).optional(),
       limit: z.number().min(1).max(100).default(20),
       cursor: z.string().optional(),
     })
@@ -24,7 +25,9 @@ export const getAllImages = pub
         'images.created_at',
         'images.blur_data',
         'images.aspect_ratio',
+        'images.description',
         'images.is_new',
+        'images.vector_description',
         // Aggregate tags into JSON array using PostgreSQL functions
         sql<any[]>`
           COALESCE(
@@ -39,7 +42,7 @@ export const getAllImages = pub
           )
         `.as('tags')
       ])
-      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio'])
+      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.description', 'images.is_new', 'images.vector_description'])
 
     // Add filtering for specific tags (AND logic - image must have ALL specified tags)
     if (input.tagIds && input.tagIds.length > 0) {
@@ -53,6 +56,11 @@ export const getAllImages = pub
             .groupBy('filter_it.image_id')
             .having(sql`COUNT(DISTINCT filter_it.tag_id)`, '=', input.tagIds!.length)
         )
+    }
+
+    // Add filtering for specific aspect ratios (OR logic - image can have ANY of the specified ratios)
+    if (input.aspectRatios && input.aspectRatios.length > 0) {
+      query = query.where('images.aspect_ratio', 'in', input.aspectRatios)
     }
 
     // Add cursor-based pagination

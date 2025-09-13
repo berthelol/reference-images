@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { QueryProvider } from '@/providers/query-provider'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
+import { Toaster } from "@/components/ui/sonner"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -24,6 +25,7 @@ export default function RootLayout({
             <main className="min-h-screen bg-background">
               {children}
             </main>
+            <Toaster />
           </QueryProvider>
         </NuqsAdapter>
       </body>

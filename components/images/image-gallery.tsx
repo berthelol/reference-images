@@ -8,11 +8,13 @@ import { ImageCard } from "@/components/images/image-card";
 import { useQueryState } from "nuqs";
 import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
 import { ImageSupabaseWithTags } from "@/types/supabase-compute";
+import { getAspectRatioValue } from "@/utils/data/aspect-ratios";
 
 interface ImageGalleryProps {}
 
 export function ImageGallery({}: ImageGalleryProps) {
   const [tagsFilters] = useQueryState("tags", filtersNuqsParsers.tags);
+  const [aspectRatiosFilters] = useQueryState("aspectRatios", filtersNuqsParsers.aspectRatios);
   const parentRef = React.useRef<HTMLDivElement>(null);
 
   const {
@@ -22,10 +24,11 @@ export function ImageGallery({}: ImageGalleryProps) {
     hasNextPage,
     fetchNextPage,
   } = useInfiniteQuery({
-    queryKey: ["images", tagsFilters],
+    queryKey: ["images", tagsFilters, aspectRatiosFilters],
     queryFn: async ({ pageParam }) => {
       return await client.images.getAll({
         tagIds: tagsFilters?.length ? tagsFilters : undefined,
+        aspectRatios: aspectRatiosFilters?.length ? aspectRatiosFilters : undefined,
         cursor: pageParam,
         limit: 40,
       });
@@ -62,7 +65,7 @@ export function ImageGallery({}: ImageGalleryProps) {
   const itemHeights = React.useMemo(() => {
     const baseWidth = 280; // Base width for calculations
     return allImages.map(image => {
-      const aspectRatio = image.aspect_ratio || 1;
+      const aspectRatio = image.aspect_ratio ? getAspectRatioValue(image.aspect_ratio as any) : 1;
       return Math.round(baseWidth / aspectRatio) + 16; // Add padding
     });
   }, [allImages]);
@@ -103,6 +106,7 @@ export function ImageGallery({}: ImageGalleryProps) {
       <div className="text-sm text-muted-foreground">
         Showing {totalImages} image{totalImages !== 1 ? "s" : ""}
         {Number(tagsFilters?.length) > 0 && " with selected tags"}
+        {Number(aspectRatiosFilters?.length) > 0 && " with selected aspect ratios"}
         {isFetchingNextPage && " (loading more...)"}
       </div>
 

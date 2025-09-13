@@ -15,12 +15,14 @@ import {
 export const filtersNuqsParsers = {
   rangeNumber: parseAsArrayOf(parseAsInteger),
   tags: parseAsArrayOf(parseAsString),
+  aspectRatios: parseAsArrayOf(parseAsString),
   rangeDate: parseAsArrayOf(parseAsIsoDate),
   boolean: parseAsBoolean,
 };
 
 export const videosSearchParamsParser = {
   tags: filtersNuqsParsers.tags,
+  aspectRatios: filtersNuqsParsers.aspectRatios,
 
   // sorting
   sort_column: parseAsStringEnum(Object.values(ImageSortColumn)),

@@ -16,25 +16,31 @@ export type Database = {
     Tables: {
       images: {
         Row: {
-          aspect_ratio: number | null
+          aspect_ratio: string | null
           blur_data: string | null
           created_at: string
+          description: string | null
           id: string
           is_new: boolean | null
+          vector_description: unknown | null
         }
         Insert: {
-          aspect_ratio?: number | null
+          aspect_ratio?: string | null
           blur_data?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           is_new?: boolean | null
+          vector_description?: unknown | null
         }
         Update: {
-          aspect_ratio?: number | null
+          aspect_ratio?: string | null
           blur_data?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           is_new?: boolean | null
+          vector_description?: unknown | null
         }
         Relationships: []
       }

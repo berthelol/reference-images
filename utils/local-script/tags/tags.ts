@@ -14,7 +14,8 @@ export default [
         "Print Ad",
         "Billboard",
         "Packaging",
-        "Reviews / Testimonials"
+        "Reviews / Testimonials",
+        "Discount / Promotion"
       ],
       "mandatory": true
     },

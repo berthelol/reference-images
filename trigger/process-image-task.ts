@@ -8,10 +8,11 @@ import { getPlaiceholder } from "plaiceholder";
 import { supabaseAdmin } from "@/utils/supabase/admin";
 import { db } from "@/utils/kysely/client";
 import { getImageUrl } from "@/utils/images/helper";
-
+import { findClosestAspectRatio } from "@/utils/data/aspect-ratios";
 
 export const processImageTask = task({
   id: "process-image",
+  maxDuration: 3600, // 1 hour timeout
   run: async (payload: {
     imageUrls: string[];
     model?: "openai" | "gemini";
@@ -127,12 +128,37 @@ export const processImageTask = task({
         const metadata = await sharp(imageBuffer).metadata();
         const originalWidth = metadata.width || 1;
         const originalHeight = metadata.height || 1;
-        const aspectRatio = originalWidth / originalHeight;
+        const originalAspectRatio = originalWidth / originalHeight;
 
-        // Compress and convert to WebP
+        // Find the closest standard aspect ratio
+        const closestRatio = findClosestAspectRatio(originalAspectRatio);
+        const normalizedAspectRatio = closestRatio.value;
+
+        // Calculate crop dimensions to match the normalized aspect ratio
+        let cropWidth: number, cropHeight: number;
+        if (originalAspectRatio > normalizedAspectRatio) {
+          // Original is wider, crop width
+          cropHeight = originalHeight;
+          cropWidth = Math.round(cropHeight * normalizedAspectRatio);
+        } else {
+          // Original is taller, crop height
+          cropWidth = originalWidth;
+          cropHeight = Math.round(cropWidth / normalizedAspectRatio);
+        }
+
+        // Compress, crop to normalized aspect ratio, and convert to WebP
         const compressedBuffer = await sharp(imageBuffer)
+          .extract({
+            left: Math.round((originalWidth - cropWidth) / 2),
+            top: Math.round((originalHeight - cropHeight) / 2),
+            width: cropWidth,
+            height: cropHeight
+          })
+          .resize(1200, Math.round(1200 / normalizedAspectRatio), {
+            fit: "inside",
+            withoutEnlargement: true
+          })
           .webp({ quality: 100 })
-          .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
           .toBuffer();
 
         // Generate blur data
@@ -153,6 +179,9 @@ export const processImageTask = task({
               confidences: z
                 .record(z.string(), z.number())
                 .describe("Map of tag IDs to confidences"),
+              description: z
+                .string()
+                .describe("A detailed description of the image content and visual elements"),
               proposedTags: z
                 .array(
                   z.object({
@@ -176,7 +205,7 @@ export const processImageTask = task({
                   {
                     type: "text",
                     text: `
-Analyze the image and perform TWO tasks.
+Analyze the image and perform THREE tasks.
 
 Task 1 — Canonical tag selection
 - Return tag IDs ONLY from the allowed list.
@@ -184,7 +213,13 @@ Task 1 — Canonical tag selection
 - Prefer precision over recall. If unsure about a tag, omit it.
 - Include a confidences map (0-1) for the IDs you selected.
 
-Task 2 — Propose NEW TAGS (optional)
+Task 2 — Image Description
+- Describe the image context, environment, scene setting, and visual layout.
+- Focus on composition, lighting, background, atmosphere, style, and spatial arrangement.
+- Include any visible UI elements, icons, text, or interface components if present.
+- Avoid focusing on specific products/objects; prioritize the overall scene and context (2-4 sentences).
+
+Task 3 — Propose NEW TAGS (optional)
 - ONLY if the taxonomy clearly lacks coverage.
 - Each proposal MUST include a parentTagId that exists in the allowed list.
 - Do NOT propose synonyms of existing tags; only propose genuinely new, useful concepts.
@@ -197,6 +232,7 @@ ${
 }
 RETURN JSON ONLY in this exact shape:
 {
+  "description": "A detailed description of the image...",
   "tagIds": ["<uuid>", "..."],
   "confidences": { "<uuid>": 0.82, "...": 0.74 },
   "proposedTags": [
@@ -221,7 +257,9 @@ ${tagContext}`,
           logger.info(`AI Result (${selectedModel.name}):`, {
             url: imageUrl,
             object: aiResult.object,
-            aspectRatio: aspectRatio,
+            originalAspectRatio: originalAspectRatio.toFixed(3),
+            normalizedAspectRatio: `${normalizedAspectRatio.toFixed(3)} (${closestRatio.name})`,
+            description: aiResult.object.description,
             tags : aiResult.object.tagIds?.map((tagId: string) => tags.find((tag: any) => tag.id === tagId)?.title),
             proposedTags : aiResult.object.proposedTags?.map((proposedTag: any) => proposedTag?.name),
             usage: aiResult.usage,
@@ -230,7 +268,7 @@ ${tagContext}`,
         } catch (aiError) {
           logger.error(`AI tagging failed for ${imageUrl}:`, { aiError });
           // Fallback: continue with empty tags
-          aiResult = { object: { tagIds: [] } };
+          aiResult = { object: { tagIds: [], description: null } };
         }
 
         // Insert image record in database
@@ -238,7 +276,8 @@ ${tagContext}`,
           .insertInto("images")
           .values({
             blur_data: blurData,
-            aspect_ratio: aspectRatio,
+            aspect_ratio: closestRatio.name,
+            description: aiResult.object.description || null,
           })
           .returning("id")
           .executeTakeFirstOrThrow();
@@ -312,6 +351,7 @@ ${tagContext}`,
           originalUrl: imageUrl,
           imageId,
           publicUrl: getImageUrl(imageId),
+          description: aiResult.object.description || null,
           tagIds: finalTagIds,
           tags: finalTagIds.map(
             (tagId: string) => tags.find((tag: any) => tag.id === tagId)?.title

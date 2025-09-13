@@ -6,7 +6,7 @@ import tags from './tags'
 config()
 
 // Set to true to delete all existing tags and recreate, false to only create non-existing ones
-const OVERRIDE = true 
+const OVERRIDE = false 
 
 interface TagCategory {
   name: string

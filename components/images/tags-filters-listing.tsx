@@ -9,6 +9,7 @@ import { filtersNuqsParsers } from "@/utils/nuqs/nuqs-parser";
 import { XIcon, Search } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { TagSupabase } from "@/types/supabase-compute";
+import { STANDARD_ASPECT_RATIOS } from "@/utils/data/aspect-ratios";
 
 type TagsFiltersListingProps = {
   tags: TagSupabase[];
@@ -16,6 +17,7 @@ type TagsFiltersListingProps = {
 
 export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
   const [tagsFilters, setTags] = useQueryState("tags", filtersNuqsParsers.tags);
+  const [aspectRatiosFilters, setAspectRatios] = useQueryState("aspectRatios", filtersNuqsParsers.aspectRatios);
   const [searchQuery, setSearchQuery] = React.useState("");
 
   const onTagToggle = (tagId: string) => {
@@ -23,6 +25,14 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
       prev?.includes(tagId)
         ? prev.filter((id) => id !== tagId)
         : [...(prev ?? []), tagId]
+    );
+  };
+
+  const onAspectRatioToggle = (aspectRatio: string) => {
+    setAspectRatios((prev) =>
+      prev?.includes(aspectRatio)
+        ? prev.filter((ratio) => ratio !== aspectRatio)
+        : [...(prev ?? []), aspectRatio]
     );
   };
 
@@ -128,11 +138,39 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
         {/* Search Results Info */}
         {searchQuery && (
           <div className="text-xs text-muted-foreground">
-            {groupedTags.masterTags.reduce((total, masterTag) => 
+            {groupedTags.masterTags.reduce((total, masterTag) =>
               total + (groupedTags.subTags[masterTag.id]?.length || 0), 0
             )} tags found
           </div>
         )}
+
+        {/* Aspect Ratio Filters */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium border-b pb-1">
+            Aspect Ratios
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {STANDARD_ASPECT_RATIOS.map((ratio) => (
+              <label
+                key={ratio.name}
+                className="flex items-center space-x-2 cursor-pointer"
+              >
+                <Checkbox
+                  checked={aspectRatiosFilters?.includes(ratio.name)}
+                  onChange={() => onAspectRatioToggle(ratio.name)}
+                />
+                <Badge
+                  variant={
+                    aspectRatiosFilters?.includes(ratio.name) ? "default" : "secondary"
+                  }
+                  className="cursor-pointer"
+                >
+                  {ratio.name}
+                </Badge>
+              </label>
+            ))}
+          </div>
+        </div>
 
         {groupedTags.masterTags.map((masterTag: any) => (
           <div key={masterTag.id} className="space-y-3">
@@ -167,10 +205,11 @@ export function TagsFiltersListing({ tags }: TagsFiltersListingProps) {
         ))}
       </div>
 
-      {(tagsFilters?.length || searchQuery) && (
+      {(tagsFilters?.length || aspectRatiosFilters?.length || searchQuery) && (
         <Button
           onClick={() => {
             setTags([]);
+            setAspectRatios([]);
             setSearchQuery("");
           }}
           variant="outline"
