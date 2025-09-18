@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Heart } from "lucide-react";
+import { Download, Heart, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getImageUrl } from "@/utils/images/helper";
 import { ImageWithFallback } from "@/components/ui/image-with-fallback";
@@ -41,6 +41,29 @@ export function ImageDetail({ imageId }: ImageDetailProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const copyJsonToClipboard = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!image?.reference_json) {
+      toast.error("No JSON data available to copy");
+      return;
+    }
+
+    try {
+      let jsonToCopy;
+      if (typeof image.reference_json === 'string') {
+        jsonToCopy = JSON.stringify(JSON.parse(image.reference_json), null, 2);
+      } else {
+        jsonToCopy = JSON.stringify(image.reference_json, null, 2);
+      }
+
+      await navigator.clipboard.writeText(jsonToCopy);
+      toast.success("JSON copied to clipboard!");
+    } catch (error) {
+      toast.error("Failed to copy JSON to clipboard");
+    }
   };
 
   if (isLoading) {
@@ -110,14 +133,7 @@ export function ImageDetail({ imageId }: ImageDetailProps) {
         </div>
       </div>
 
-      {/* Description */}
-      {image.description && (
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Description</h3>
-          <p className="text-muted-foreground">{image.description}</p>
-        </div>
-      )}
-
+     
       {/* Tags */}
       {image.tags && image.tags.length > 0 && (
         <div className="space-y-3">
@@ -132,6 +148,34 @@ export function ImageDetail({ imageId }: ImageDetailProps) {
                 {tag.title}
               </Badge>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reference JSON */}
+      {image.reference_json && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Reference JSON</h3>
+            <Button
+              onClick={copyJsonToClipboard}
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Copy className="w-4 h-4" />
+              Copy JSON
+            </Button>
+          </div>
+          <div className="relative">
+            <pre className="bg-muted/30 rounded-lg p-4 text-sm overflow-x-auto max-h-96 overflow-y-auto border">
+              <code className="text-foreground">
+                {typeof image.reference_json === 'string'
+                  ? JSON.stringify(JSON.parse(image.reference_json), null, 2)
+                  : JSON.stringify(image.reference_json, null, 2)
+                }
+              </code>
+            </pre>
           </div>
         </div>
       )}

@@ -22,6 +22,7 @@ export type Database = {
           description: string | null
           id: string
           is_new: boolean | null
+          reference_json: Json | null
           vector_description: unknown | null
         }
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_new?: boolean | null
+          reference_json?: Json | null
           vector_description?: unknown | null
         }
         Update: {
@@ -40,6 +42,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_new?: boolean | null
+          reference_json?: Json | null
           vector_description?: unknown | null
         }
         Relationships: []

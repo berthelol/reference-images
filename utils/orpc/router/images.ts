@@ -23,6 +23,7 @@ export const getImageById = pub
         'images.description',
         'images.is_new',
         'images.vector_description',
+        'images.reference_json',
         // Aggregate tags into JSON array using PostgreSQL functions
         sql<any[]>`
           COALESCE(
@@ -38,7 +39,7 @@ export const getImageById = pub
         `.as('tags')
       ])
       .where('images.id', '=', input.id)
-      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.description', 'images.is_new', 'images.vector_description'])
+      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.description', 'images.is_new', 'images.vector_description', 'images.reference_json'])
       .executeTakeFirst()
 
     if (!result) {
@@ -71,24 +72,22 @@ export const getAllImages = pub
         'images.created_at',
         'images.blur_data',
         'images.aspect_ratio',
-        'images.description',
         'images.is_new',
-        'images.vector_description',
         // Aggregate tags into JSON array using PostgreSQL functions
         sql<any[]>`
           COALESCE(
             JSON_AGG(
-              CASE 
-                WHEN tags.id IS NOT NULL 
+              CASE
+                WHEN tags.id IS NOT NULL
                 THEN JSON_BUILD_OBJECT('id', tags.id, 'title', tags.title)
-                ELSE NULL 
+                ELSE NULL
               END
             ) FILTER (WHERE tags.id IS NOT NULL),
             '[]'::json
           )
         `.as('tags')
       ])
-      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.description', 'images.is_new', 'images.vector_description'])
+      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.is_new'])
 
     // Add filtering for specific tags (AND logic - image must have ALL specified tags)
     if (input.tagIds && input.tagIds.length > 0) {

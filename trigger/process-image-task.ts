@@ -10,6 +10,133 @@ import { db } from "@/utils/kysely/client";
 import { getImageUrl } from "@/utils/images/helper";
 import { findClosestAspectRatio } from "@/utils/images/aspect-ratios";
 
+// Reference Image Schema - made more resilient with optional fields and string descriptions
+const ReferenceImageSchema = z.object({
+  meta: z.object({
+    version: z.literal("refimg.v1"),
+    source: z.string().optional().describe("like 'uploaded' or 'url'"),
+    aspect_ratio: z.string().describe("e.g. '1:1', '4:5', '9:16'"),
+    detected_resolution: z.string().optional().describe("like '3000x4000' if inferable"),
+    confidence: z.number().min(0).max(1)
+  }),
+  variables: z.object({
+    text_variables: z.record(z.string(), z.string())
+      .describe("One-depth key:value map. Example: HEADLINE, SUBHEAD, BADGE_TEXT").default({}),
+    color_variables: z.record(z.string(), z.string())
+      .describe("One-depth key:HEX map. Example: BRAND_PRIMARY:'#1A2A6A'").default({}),
+    font_variables: z.record(z.string(), z.object({
+      family: z.string(),            // "serif", "sans-serif", or detected family if obvious
+      weight: z.string().optional(), // "400","700"
+      case: z.string().optional().describe("like 'normal', 'upper', 'title'"),
+      notes: z.string().optional()
+    })).describe("Keyed tokens like HEADLINE_FONT, BODY_FONT").default({}),
+    icon_variables: z.record(z.string(), z.string()).optional()
+      .describe("Optional names to simple descriptors, e.g. CHECK:'check-solid'"),
+  }),
+  scene: z.object({
+    background: z.object({
+      type: z.string().describe("like 'solid', 'gradient', 'texture', 'studio', 'environment'"),
+      colorVar: z.string().optional(),     // key from color_variables
+      colorVar2: z.string().optional(),    // for gradients
+      description: z.string().optional()   // e.g. "split vertical 50/50", "marble texture"
+    }),
+    lighting: z.object({
+      key: z.string(),                     // "soft daylight from top-left"
+      shadows: z.string().optional(),      // "subtle drop", "ring shadow"
+      effects: z.array(z.string()).optional()
+    }),
+    camera: z.object({
+      angle: z.string(),                   // "45-degree front", "top-down"
+      focal_length: z.string().optional(), // "50mm eq"
+      depth_of_field: z.string().optional(), // "shallow", "deep"
+      framing: z.string().optional()       // "mid shot, centered"
+    }),
+    composition: z.object({
+      grid: z.string().optional(),         // "two-column", "rule-of-thirds"
+      safe_area: z.array(z.number()).length(4).optional()
+        .describe("[x,y,w,h] normalized 0–1"),
+      z_order: z.array(z.string()).optional() // selectors/names in draw order
+    }).optional()
+  }),
+  subjects: z.array(z.object({
+    name: z.string(),                      // stable key: "product_jar", "hand_capsule"
+    type: z.string().describe("like 'product', 'product_group', 'person', 'hand_with_product', 'graphic', 'other'"),
+    description: z.string(),               // concise noun phrase
+    pose: z.string().optional(),
+    materials: z.array(z.string()).optional(),
+    position: z.object({
+      anchor: z.string().describe("like 'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right', 'left', 'right', 'top', 'bottom', 'custom'"),
+      bbox_norm: z.array(z.number()).length(4)
+        .describe("[x,y,w,h] normalized 0–1")
+    }),
+    scale: z.string().optional(),          // "large","medium"
+    rotation_deg: z.number().optional(),
+    shadow: z.string().optional(),
+    mask_shape: z.string().optional()      // "circle","pill","rounded-rect"
+  })).default([]),
+  overlays: z.object({
+    graphics: z.array(z.object({
+      name: z.string(),                    // "badge", "underline_rule"
+      kind: z.string().describe("like 'shape', 'rule', 'badge', 'stars', 'pill', 'frame'"),
+      position: z.object({
+        anchor: z.string(),
+        bbox_norm: z.array(z.number()).length(4)
+      }),
+      style: z.record(z.string(), z.any()).optional(), // arbitrary style details
+      colorVar: z.string().optional(),
+      strokeColorVar: z.string().optional()
+    })).optional(),
+    text_blocks: z.array(z.object({
+      key: z.string().describe("MUST map to variables.text_variables"),
+      default_text: z.string().optional(),
+      fontVar: z.string().describe("Key from variables.font_variables").optional(),
+      colorVar: z.string().describe("Key from variables.color_variables").optional(),
+      bgColorVar: z.string().optional(),
+      size_pt: z.number().optional(),
+      line_height: z.number().optional(),
+      tracking: z.string().optional(),     // "0.5px"
+      align: z.string().optional().describe("like 'left', 'center', 'right'"),
+      position: z.object({
+        anchor: z.string(),
+        bbox_norm: z.array(z.number()).length(4)
+      }),
+      max_width_px: z.number().optional(),
+      style: z.record(z.string(), z.any()).optional()
+    })).optional()
+  }).optional(),
+  constraints: z.object({
+    strict_layout_match: z.boolean().default(true),
+    do_not_add: z.array(z.string()).default([]),
+    must_match: z.array(z.string()).default([])
+  }).optional(),
+  export: z.object({
+    aspect_ratio: z.string(),              // repeat for convenience
+    target_resolution: z.string().optional(), // "2048x2048"
+    format: z.string().default("PNG").describe("like 'PNG', 'JPG', 'WEBP'"),
+    transparent_background: z.boolean().optional()
+  }),
+  variability: z.object({
+    allowed_jitter_pct: z.number().min(0).max(50).default(5),
+    random_seed: z.number().optional(),
+    augmentations: z.string().default("none").describe("like 'none', 'minor', 'moderate'")
+  }).optional(),
+  negatives: z.array(z.string()).default([]), // e.g. ["no CTA buttons","no extra badges"]
+
+  // Scene generation properties for AI image creation
+  scene_variations: z.array(z.object({
+    slot: z.string().describe("e.g. '1 - Clarity Shot', '2 - Lifestyle Context'"),
+    aspect_ratio: z.string().describe("e.g. '1:1', '4:5', '9:16'"),
+    scene_name: z.string().describe("e.g. 'clarity_shot', 'lifestyle_context'"),
+    product_reference: z.string().describe("Instructions for how the product should match the reference image"),
+    scene: z.string().describe("Description of the background and environment"),
+    angle: z.string().describe("Camera angle and perspective"),
+    lighting: z.string().describe("Lighting conditions and quality"),
+    photo_quality: z.string().describe("Quality and style requirements"),
+    additional_elements: z.string().describe("Props, objects, or elements to include"),
+    composition_notes: z.string().describe("Framing and arrangement guidelines")
+  })).optional().describe("Array of scene variations for AI image generation")
+});
+
 export const processImageTask = task({
   id: "process-image",
   maxDuration: 3600, // 1 hour timeout
@@ -273,6 +400,165 @@ ${JSON.stringify(tagContext, null, 2)}`,
           aiResult = { object: { tagIds: [], description: null } };
         }
 
+        // Generate reference JSON for the image
+        let referenceJSON;
+        try {
+          const referenceResult = await generateObject({
+            model: selectedModel.provider,
+            schema: ReferenceImageSchema,
+            temperature: 0.2,
+            messages: [
+              {
+                role: "system",
+                content:
+`Extract a simplified "Reference Image JSON" from the image. Return ONLY valid JSON.
+CRITICAL: Use exactly this structure. Every field shown is required. Use defaults for optional fields.`
+              },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text:
+`Analyze the image and return JSON with this EXACT structure:
+
+{
+  "meta": {
+    "version": "refimg.v1",
+    "aspect_ratio": "${closestRatio.name}",
+    "confidence": 0.8
+  },
+  "variables": {
+    "text_variables": {},
+    "color_variables": {},
+    "font_variables": {}
+  },
+  "scene": {
+    "background": {
+      "type": "solid"
+    },
+    "lighting": {
+      "key": "natural light"
+    },
+    "camera": {
+      "angle": "front view"
+    },
+    "composition": {}
+  },
+  "subjects": [],
+  "overlays": {
+    "text_blocks": []
+  },
+  "constraints": {
+    "strict_layout_match": true,
+    "do_not_add": [],
+    "must_match": []
+  },
+  "export": {
+    "aspect_ratio": "${closestRatio.name}",
+    "format": "PNG"
+  },
+  "variability": {
+    "allowed_jitter_pct": 5,
+    "augmentations": "none"
+  },
+  "negatives": [],
+  "scene_variations": [
+    {
+      "slot": "1 - Clarity Shot",
+      "aspect_ratio": "${closestRatio.name}",
+      "scene_name": "clarity_shot",
+      "product_reference": "The product must visually match the uploaded reference image in shape, design, and color. Do not copy the same angle, crop, or composition of the reference. Follow scene, angle, and composition instructions strictly for variation.",
+      "scene": "clean neutral background, seamless white surface",
+      "angle": "front-facing, centered perspective",
+      "lighting": "bright studio lighting with soft shadows",
+      "photo_quality": "Always photorealistic and sharp, resembling a professional e-commerce or lifestyle photo.",
+      "additional_elements": "None visible",
+      "composition_notes": "Product perfectly centered, negative space evenly distributed"
+    }
+  ]
+}
+
+Fill in the fields based on what you see in the image:
+- For background.type: choose from "solid", "gradient", "texture", "studio", "environment"
+- For subjects: add objects you see with name, type ("product", "person", etc), description, position with anchor ("center", "top-left", etc) and bbox_norm as [x,y,width,height] with values 0-1
+- For text_blocks: add any text with key, position, and anchor
+- For scene_variations: generate 5 scene variations for AI image generation based on the product:
+  1. "Clarity Shot" - clean neutral background
+  2. "Lifestyle Context" - modern environment with decor
+  3. "In-Use Demonstration" - hands interacting with product
+  4. "Feature Showcase" - macro close-up of key feature
+  5. "Scale Comparison" - with familiar objects for size reference
+
+Return ONLY the JSON structure above, filled with your analysis.`
+                  },
+                  { type: "image", image: compressedBuffer, mediaType: "image/webp" }
+                ]
+              }
+            ],
+            maxRetries: 2,
+            mode: "json"
+          });
+
+          referenceJSON = referenceResult.object;
+          const refCost = calculateAICost(referenceResult.usage, selectedModel.name);
+          logger.info(`Reference JSON generated (${selectedModel.name}):`, {
+            url: imageUrl,
+            referenceJSON: referenceJSON,
+            usage: referenceResult.usage,
+            cost: `$${refCost.toFixed(10)}`,
+          });
+        } catch (refError) {
+          logger.warn(`Reference JSON generation failed (attempt 1), trying text mode fallback for ${imageUrl}:`, {
+            refError: {
+              name: refError instanceof Error ? refError.name : 'Unknown',
+              message: refError instanceof Error ? refError.message : 'Unknown error'
+            }
+          });
+
+          // Direct fallback without more AI attempts to avoid infinite loops
+          logger.info(`Using hardcoded fallback reference JSON for ${imageUrl}`);
+
+          // Create minimal fallback reference JSON to avoid null values
+          referenceJSON = {
+            meta: {
+              version: "refimg.v1" as const,
+              aspect_ratio: closestRatio.name,
+              confidence: 0.5
+            },
+            variables: {
+              text_variables: {},
+              color_variables: {},
+              font_variables: {}
+            },
+            scene: {
+              background: { type: "solid" },
+              lighting: { key: "natural" },
+              camera: { angle: "front" }
+            },
+            subjects: [],
+            export: {
+              aspect_ratio: closestRatio.name,
+              format: "PNG"
+            },
+            negatives: [],
+            scene_variations: [
+              {
+                slot: "1 - Clarity Shot",
+                aspect_ratio: closestRatio.name,
+                scene_name: "clarity_shot",
+                product_reference: "The product must visually match the uploaded reference image in shape, design, and color. Do not copy the same angle, crop, or composition of the reference. Follow scene, angle, and composition instructions strictly for variation.",
+                scene: "clean neutral background, seamless white surface",
+                angle: "front-facing, centered perspective",
+                lighting: "bright studio lighting with soft shadows",
+                photo_quality: "Always photorealistic and sharp, resembling a professional e-commerce or lifestyle photo.",
+                additional_elements: "None visible",
+                composition_notes: "Product perfectly centered, negative space evenly distributed"
+              }
+            ]
+          };
+        }
+
         // Insert image record in database
         const insertResult = await db
           .insertInto("images")
@@ -280,6 +566,7 @@ ${JSON.stringify(tagContext, null, 2)}`,
             blur_data: blurData,
             aspect_ratio: closestRatio.name,
             description: aiResult.object.description || null,
+            reference_json: referenceJSON ? JSON.stringify(referenceJSON) : null,
           })
           .returning("id")
           .executeTakeFirstOrThrow();
@@ -366,6 +653,7 @@ ${JSON.stringify(tagContext, null, 2)}`,
           tags: finalTagIds.map(
             (tagId: string) => tags.find((tag: any) => tag.id === tagId)?.title
           ),
+          referenceJSON: referenceJSON,
           status: "completed",
         });
       } catch (error) {
