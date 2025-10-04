@@ -97,3 +97,30 @@ export function getAspectRatioValue(name: AspectRatioName): number {
   const ratio = STANDARD_ASPECT_RATIOS.find(r => r.name === name);
   return ratio?.value || 1;
 }
+
+// Function to calculate crop dimensions for a given aspect ratio
+export function calculateCropDimensions(
+  originalWidth: number,
+  originalHeight: number,
+  targetAspectRatio: number
+): { width: number; height: number; left: number; top: number } {
+  const originalAspectRatio = originalWidth / originalHeight;
+
+  let cropWidth: number, cropHeight: number;
+  if (originalAspectRatio > targetAspectRatio) {
+    // Original is wider, crop width
+    cropHeight = originalHeight;
+    cropWidth = Math.round(cropHeight * targetAspectRatio);
+  } else {
+    // Original is taller, crop height
+    cropWidth = originalWidth;
+    cropHeight = Math.round(cropWidth / targetAspectRatio);
+  }
+
+  return {
+    width: cropWidth,
+    height: cropHeight,
+    left: Math.round((originalWidth - cropWidth) / 2),
+    top: Math.round((originalHeight - cropHeight) / 2),
+  };
+}

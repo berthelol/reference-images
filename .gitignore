@@ -45,3 +45,7 @@ certificates
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Images
+./utils/local-script/creative-os/images
+./utils/local-script/air-sync/images

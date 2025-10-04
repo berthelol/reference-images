@@ -9,8 +9,7 @@ import dynamic from 'next/dynamic'
 const inter = Inter({ subsets: ['latin'] })
 
 const ImageSidebar = dynamic(() =>
-  import("@/components/sidebar/image-sidebar"),
-  { ssr: false }
+  import("@/components/sidebar/image-sidebar")
 );
 
 export const metadata: Metadata = {

@@ -1,52 +1,55 @@
 import { z } from 'zod'
 import { pub } from '@/utils/orpc/middlewares'
-import { db } from '@/utils/kysely/client'
-import { sql } from 'kysely'
+// import { db } from '@/utils/kysely/client' // Commented out - using Supabase admin client instead
+// import { sql } from 'kysely'
+import { supabaseAdmin } from '@/utils/supabase/admin'
 
 export const getImageById = pub
   .input(z.object({
     id: z.string()
   }))
   .handler(async ({ input }) => {
-    const result = await db
-      .selectFrom('images')
-      .leftJoin('images-tags as it', 'it.image_id', 'images.id')
-      .leftJoin('tags', (join) => join
-        .onRef('tags.id', '=', 'it.tag_id')
-        .on('tags.is_validated', '=', true)
-      )
-      .select([
-        'images.id',
-        'images.created_at',
-        'images.blur_data',
-        'images.aspect_ratio',
-        'images.description',
-        'images.is_new',
-        'images.vector_description',
-        'images.reference_json',
-        // Aggregate tags into JSON array using PostgreSQL functions
-        sql<any[]>`
-          COALESCE(
-            JSON_AGG(
-              CASE
-                WHEN tags.id IS NOT NULL
-                THEN JSON_BUILD_OBJECT('id', tags.id, 'title', tags.title)
-                ELSE NULL
-              END
-            ) FILTER (WHERE tags.id IS NOT NULL),
-            '[]'::json
-          )
-        `.as('tags')
-      ])
-      .where('images.id', '=', input.id)
-      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.description', 'images.is_new', 'images.vector_description', 'images.reference_json'])
-      .executeTakeFirst()
+    // Fetch image data
+    const { data: image, error: imageError } = await supabaseAdmin
+      .from('images')
+      .select('*')
+      .eq('id', input.id)
+      .single()
 
-    if (!result) {
+    if (imageError || !image) {
       throw new Error('Image not found')
     }
 
-    return result
+    // Fetch associated tags
+    const { data: imageTags, error: tagsError } = await supabaseAdmin
+      .from('images-tags')
+      .select(`
+        tag_id,
+        tags!inner (
+          id,
+          title,
+          is_validated
+        )
+      `)
+      .eq('image_id', input.id)
+      .eq('tags.is_validated', true)
+
+    if (tagsError) {
+      throw new Error(`Failed to fetch tags: ${tagsError.message}`)
+    }
+
+    // Transform tags to match expected format
+    const tags = (imageTags || [])
+      .filter((it: any) => it.tags)
+      .map((it: any) => ({
+        id: it.tags.id,
+        title: it.tags.title
+      }))
+
+    return {
+      ...image,
+      tags
+    }
   })
 
 export const getAllImages = pub
@@ -60,78 +63,124 @@ export const getAllImages = pub
     })
   )
   .handler(async ({ input }) => {
-    let query = db
-      .selectFrom('images')
-      .leftJoin('images-tags as it', 'it.image_id', 'images.id')
-      .leftJoin('tags', (join) => join
-        .onRef('tags.id', '=', 'it.tag_id')
-        .on('tags.is_validated', '=', true)
-      )
-      .select([
-        'images.id',
-        'images.created_at',
-        'images.blur_data',
-        'images.aspect_ratio',
-        'images.is_new',
-        // Aggregate tags into JSON array using PostgreSQL functions
-        sql<any[]>`
-          COALESCE(
-            JSON_AGG(
-              CASE
-                WHEN tags.id IS NOT NULL
-                THEN JSON_BUILD_OBJECT('id', tags.id, 'title', tags.title)
-                ELSE NULL
-              END
-            ) FILTER (WHERE tags.id IS NOT NULL),
-            '[]'::json
-          )
-        `.as('tags')
-      ])
-      .groupBy(['images.id', 'images.created_at', 'images.blur_data', 'images.aspect_ratio', 'images.is_new'])
+    // Start with basic query
+    let query = supabaseAdmin
+      .from('images')
+      .select('id, created_at, blur_data, aspect_ratio, is_new')
 
-    // Add filtering for specific tags (AND logic - image must have ALL specified tags)
-    if (input.tagIds && input.tagIds.length > 0) {
-      query = query
-        .where('images.id', 'in', (eb) =>
-          eb.selectFrom('images-tags as filter_it')
-            .innerJoin('tags as filter_tags', 'filter_tags.id', 'filter_it.tag_id')
-            .select('filter_it.image_id')
-            .where('filter_it.tag_id', 'in', input.tagIds!)
-            .where('filter_tags.is_validated', '=', true)
-            .groupBy('filter_it.image_id')
-            .having(sql`COUNT(DISTINCT filter_it.tag_id)`, '=', input.tagIds!.length)
-        )
-    }
-
-    // Add filtering for specific aspect ratios (OR logic - image can have ANY of the specified ratios)
+    // Add aspect ratio filter (OR logic)
     if (input.aspectRatios && input.aspectRatios.length > 0) {
-      query = query.where('images.aspect_ratio', 'in', input.aspectRatios)
+      query = query.in('aspect_ratio', input.aspectRatios)
     }
 
-    // Add vector search functionality (search only in vector_description)
+    // Add vector search filter
     if (input.search && input.search.trim().length > 0) {
-      const searchTerm = input.search.trim()
-      query = query.where(
-        sql<any>`images.vector_description @@ plainto_tsquery('english', ${searchTerm})` 
-      )
+      query = query.textSearch('vector_description', input.search.trim(), {
+        type: 'plain',
+        config: 'english'
+      })
     }
 
     // Add cursor-based pagination
     if (input.cursor) {
-      query = query.where('images.created_at', '<', input.cursor)
+      query = query.lt('created_at', input.cursor)
     }
 
-    const result = await query
-      .orderBy('images.created_at', 'desc')
-      .limit(input.limit + 1) // Get one extra to check if there's more
-      .execute()
+    // Execute query
+    const { data: images, error: imagesError } = await query
+      .order('created_at', { ascending: false })
+      .limit(input.limit + 1)
 
-    const hasMore = result.length > input.limit
-    const images = hasMore ? result.slice(0, input.limit) : result
-    const nextCursor = hasMore ? images[images.length - 1]?.created_at : null
+    if (imagesError) {
+      throw new Error(`Failed to fetch images: ${imagesError.message}`)
+    }
+
+    let filteredImages = images || []
+
+    // If tag filtering is required, we need to do it separately
+    if (input.tagIds && input.tagIds.length > 0) {
+      // Get image IDs that have ALL the specified tags
+      const imageIds = filteredImages.map(img => img.id)
+
+      if (imageIds.length > 0) {
+        const { data: imageTags, error: tagsError } = await supabaseAdmin
+          .from('images-tags')
+          .select('image_id, tag_id, tags!inner(is_validated)')
+          .in('image_id', imageIds)
+          .in('tag_id', input.tagIds)
+          .eq('tags.is_validated', true)
+
+        if (tagsError) {
+          throw new Error(`Failed to fetch image tags: ${tagsError.message}`)
+        }
+
+        // Group by image_id and count distinct tags
+        const tagCounts = (imageTags || []).reduce((acc: Record<string, Set<string>>, it: any) => {
+          if (!acc[it.image_id]) {
+            acc[it.image_id] = new Set()
+          }
+          acc[it.image_id].add(it.tag_id)
+          return acc
+        }, {})
+
+        // Filter images that have ALL required tags (AND logic)
+        const validImageIds = Object.entries(tagCounts)
+          .filter(([_, tagSet]) => tagSet.size === input.tagIds!.length)
+          .map(([imageId, _]) => imageId)
+
+        filteredImages = filteredImages.filter(img => validImageIds.includes(img.id))
+      }
+    }
+
+    // Now fetch tags for all remaining images
+    if (filteredImages.length > 0) {
+      const imageIds = filteredImages.map(img => img.id)
+
+      const { data: allImageTags, error: allTagsError } = await supabaseAdmin
+        .from('images-tags')
+        .select(`
+          image_id,
+          tag_id,
+          tags!inner (
+            id,
+            title,
+            is_validated
+          )
+        `)
+        .in('image_id', imageIds)
+        .eq('tags.is_validated', true)
+
+      if (allTagsError) {
+        throw new Error(`Failed to fetch tags: ${allTagsError.message}`)
+      }
+
+      // Group tags by image_id
+      const tagsByImageId = (allImageTags || []).reduce((acc: Record<string, any[]>, it: any) => {
+        if (!acc[it.image_id]) {
+          acc[it.image_id] = []
+        }
+        if (it.tags) {
+          acc[it.image_id].push({
+            id: it.tags.id,
+            title: it.tags.title
+          })
+        }
+        return acc
+      }, {})
+
+      // Attach tags to images
+      filteredImages = filteredImages.map(img => ({
+        ...img,
+        tags: tagsByImageId[img.id] || []
+      }))
+    }
+
+    const hasMore = filteredImages.length > input.limit
+    const resultImages = hasMore ? filteredImages.slice(0, input.limit) : filteredImages
+    const nextCursor = hasMore ? resultImages[resultImages.length - 1]?.created_at : null
 
     return {
-      images,
+      images: resultImages,
       nextCursor,
       hasMore,
     }

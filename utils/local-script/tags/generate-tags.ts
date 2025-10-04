@@ -1,6 +1,6 @@
 import { config } from 'dotenv'
 import { supabaseAdmin } from '@/utils/supabase/admin'
-import { db } from '@/utils/kysely/client'
+// import { db } from '@/utils/kysely/client' // Commented out - using Supabase admin client instead
 import tags from './tags'
 
 config()
@@ -25,14 +25,39 @@ async function generateTags() {
   // If OVERRIDE is true, delete all existing tags
   if (OVERRIDE) {
     console.log('\n🗑️  Deleting all existing tags...')
-    
+    // try {
+    //   // Delete images-tags relationships first (foreign key constraint)
+    //   await db.deleteFrom('images-tags').execute()
+    //   console.log('✓ Deleted all images-tags relationships')
+      
+    //   // Then delete all tags
+    //   await db.deleteFrom('tags').execute()
+    //   console.log('✓ All existing tags deleted')
+    // } catch (error) {
+    //   console.error('Error deleting existing tags:', error)
+    //   return
+    // }
     try {
       // Delete images-tags relationships first (foreign key constraint)
-      await db.deleteFrom('images-tags').execute()
+      const { error: deleteImagesTagsError } = await supabaseAdmin
+        .from('images-tags')
+        .delete()
+        .neq('image_id', '00000000-0000-0000-0000-000000000000') // Delete all rows
+
+      if (deleteImagesTagsError) {
+        throw deleteImagesTagsError
+      }
       console.log('✓ Deleted all images-tags relationships')
-      
+
       // Then delete all tags
-      await db.deleteFrom('tags').execute()
+      const { error: deleteTagsError } = await supabaseAdmin
+        .from('tags')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all rows
+
+      if (deleteTagsError) {
+        throw deleteTagsError
+      }
       console.log('✓ All existing tags deleted')
     } catch (error) {
       console.error('Error deleting existing tags:', error)
