@@ -16,7 +16,7 @@ interface ImageCardProps {
 }
 
 export function ImageCard({ image }: ImageCardProps) {
-  const [, setImageModal] = useQueryState("imageModal");
+  const [, setImageModal] = useQueryState("image-sidebar");
 
   const handleSave = (e: React.MouseEvent) => {
     e.preventDefault();

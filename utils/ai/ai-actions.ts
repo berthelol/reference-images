@@ -127,13 +127,14 @@ const ReferenceImageSchema = z.object({
     aspect_ratio: z.string(),
     target_resolution: z.string().nullish(),
     transparent_background: z.boolean().nullish()
-  }),
+  }).nullish(),
   variability: z.object({
     allowed_jitter_pct: z.number().min(0).max(50).default(5),
     random_seed: z.number().nullish(),
     augmentations: z.string().default("none").describe("like 'none', 'minor', 'moderate'")
   }).nullish(),
-  negatives: z.array(z.string()).default([])
+  negatives: z.array(z.string()).default([]),
+  description: z.string().nullish().describe("Optional description field")
 });
 
 const modelConfig = {
@@ -444,7 +445,8 @@ EXAMPLE OUTPUT STRUCTURE:
     "allowed_jitter_pct": 5,
     "augmentations": "none"
   },
-  "negatives": []
+  "negatives": [],
+  "description": null
 }
 
 Return ONLY valid JSON matching this structure. Be thorough and extract ALL visible elements.`,
@@ -455,6 +457,89 @@ Return ONLY valid JSON matching this structure. Be thorough and extract ALL visi
     ],
     maxRetries,
     mode: "json",
+  });
+
+  return result;
+}
+
+/**
+ * Generate ad prompt and filled JSON from product image and reference template
+ */
+export async function generateAdPromptAndJSON({
+  productImageBuffer,
+  referenceImageBuffer,
+  referenceJSON,
+}: {
+  productImageBuffer: Buffer;
+  referenceImageBuffer: Buffer;
+  referenceJSON: any;
+}) {
+  const result = await generateObject({
+    model: openai("gpt-4o"),
+    schema: z.object({
+      prompt: z.string().describe("Complete prompt for Nano Banana image generation including all details about composition, lighting, style, and positioning"),
+      filled_json: z.any().describe("The reference JSON with all variables filled based on the product image")
+    }),
+    schemaName: "AdPromptAndJSON",
+    schemaDescription: "Generate a detailed prompt and filled template JSON for ad generation",
+    temperature: 0.3,
+    mode: "json",
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert ad creative director. Your task is to:
+1. Analyze the product image
+2. Use the reference template JSON to create a new ad composition
+3. Fill all text variables, colors, and elements based on the product
+4. Generate a detailed prompt for AI image generation that recreates the reference ad layout with the new product
+
+Be specific about positioning, colors, typography, and composition. The goal is to maintain the exact layout and style of the reference while featuring the new product.`
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Create an ad for this product using the reference template.
+
+REFERENCE TEMPLATE JSON:
+${JSON.stringify(referenceJSON, null, 2)}
+
+INSTRUCTIONS:
+1. Analyze the product image and extract:
+   - Product name, tagline, key features
+   - Brand colors from the product packaging
+   - Product type and category
+
+2. Fill the template JSON:
+   - Update all text_variables with product-specific copy
+   - Extract and use brand colors in color_variables
+   - Maintain the exact same layout and element positions
+   - Update product_elements to describe the new product
+
+3. Generate a detailed prompt that:
+   - Describes the exact layout from the reference
+   - Specifies all text positions and content
+   - Details the product positioning and lighting
+   - Includes brand colors and styling
+   - Maintains the reference's composition and aesthetic
+
+Return both the filled JSON and the generation prompt.`
+          },
+          {
+            type: "image",
+            image: productImageBuffer,
+            mediaType: "image/webp"
+          },
+          {
+            type: "image",
+            image: referenceImageBuffer,
+            mediaType: "image/webp"
+          }
+        ]
+      }
+    ],
+    maxRetries: 2
   });
 
   return result;

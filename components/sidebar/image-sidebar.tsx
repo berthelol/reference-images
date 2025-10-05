@@ -7,7 +7,7 @@ import { ImageDetail } from "@/components/images/image-detail";
 
 
 export function ImageSidebar() {
-  const [imageModal, setImageModal] = useQueryState("imageModal");
+  const [imageModal, setImageModal] = useQueryState("image-sidebar");
 
   function handleClose() {
     setImageModal(null);

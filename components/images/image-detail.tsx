@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Heart, Copy } from "lucide-react";
+import { Download, Heart, Copy, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getImageUrl } from "@/utils/images/helper";
 import { ImageWithFallback } from "@/components/ui/image-with-fallback";
@@ -9,12 +9,16 @@ import { getAspectRatioValue } from "@/utils/images/aspect-ratios";
 import { useQuery } from "@tanstack/react-query";
 import { client } from "@/utils/orpc";
 import { toast } from "sonner";
+import { useQueryState } from "nuqs";
 
 interface ImageDetailProps {
   imageId: string;
 }
 
 export function ImageDetail({ imageId }: ImageDetailProps) {
+  const [, setTemplateKey] = useQueryState("template-key");
+  const [, closeImageSidebar] = useQueryState("image-sidebar")
+
   const { data: image, isLoading, error } = useQuery({
     queryKey: ["image", imageId],
     queryFn: async () => {
@@ -29,6 +33,11 @@ export function ImageDetail({ imageId }: ImageDetailProps) {
     toast("Coming soon", {
       description: "Save functionality will be available soon!",
     });
+  };
+
+  const handleGenerateAd = () => {
+    setTemplateKey(imageId);
+    closeImageSidebar(null);
   };
 
   const downloadImage = (e: React.MouseEvent) => {
@@ -133,7 +142,18 @@ export function ImageDetail({ imageId }: ImageDetailProps) {
         </div>
       </div>
 
-     
+      {/* Generate Ad Button */}
+      <div className="flex justify-center">
+        <Button
+          onClick={handleGenerateAd}
+          size="lg"
+          className="w-full max-w-md  text-white shadow-lg"
+        >
+          <Sparkles className="w-5 h-5 mr-2" />
+          Generate Ad with this template
+        </Button>
+      </div>
+
       {/* Tags */}
       {image.tags && image.tags.length > 0 && (
         <div className="space-y-3">

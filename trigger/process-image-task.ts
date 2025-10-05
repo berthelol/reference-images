@@ -118,7 +118,7 @@ export const processImageTask = task({
           });
 
           const cost = calculateAICost(aiResult.usage, payload.model || "openai");
-          logger.info(`AI Result (${payload.model || "openai"}):`, {
+          logger.info(`GENERATE IMAGE TAGS Result (${payload.model || "openai"}):`, {
             url: imageUrl,
             object: aiResult.object,
             originalAspectRatio: originalAspectRatio.toFixed(3),
