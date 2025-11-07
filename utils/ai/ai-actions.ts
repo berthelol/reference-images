@@ -469,78 +469,102 @@ export async function generateAdPromptAndJSON({
   productImageBuffer,
   referenceImageBuffer,
   referenceJSON,
+  step,
 }: {
   productImageBuffer: Buffer;
   referenceImageBuffer: Buffer;
   referenceJSON: any;
+  step?: "product_swap" | "text_elements";
 }) {
-  const result = await generateObject({
-    model: openai("gpt-4o"),
-    schema: z.object({
-      prompt: z.string().describe("Complete prompt for Nano Banana image generation including all details about composition, lighting, style, and positioning"),
-      filled_json: z.any().describe("The reference JSON with all variables filled based on the product image")
-    }),
-    schemaName: "AdPromptAndJSON",
-    schemaDescription: "Generate a detailed prompt and filled template JSON for ad generation",
-    temperature: 0.3,
-    mode: "json",
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert ad creative director. Your task is to:
+  // Customize instructions based on step
+  const stepInstructions = step === "product_swap"
+    ? `STEP 1: PRODUCT SWAP ONLY
+Focus on swapping the product while keeping text and colors from the reference identical.
+- Keep all text_variables exactly as they are in the reference template (same content, colors, fonts)
+- Keep all color_variables identical to the reference
+- Only update product_elements to describe the new product
+- Generate a prompt that focuses on product replacement while maintaining everything else`
+    : step === "text_elements"
+    ? `STEP 2: TEXT AND ELEMENTS UPDATE
+Update text and colors to match the new product (product is already swapped).
+- Update all text_variables with new product-specific copy
+- Update color_variables to match the product's branding
+- Keep product_elements as is (product already positioned)
+- Generate a prompt that updates text, colors, and graphic elements`
+    : `COMPLETE GENERATION (ONE-SHOT)
+Create a complete ad with the new product.
+- Update all elements: product, text, colors, graphics
+- Fill all template variables based on the product
+- Generate a comprehensive prompt covering all aspects`;
+
+  try {
+    const result = await generateObject({
+      model: openai("gpt-4o"),
+      schema: z.object({
+        prompt: z.string().describe("Complete prompt for Nano Banana image generation including all details about composition, lighting, style, and positioning"),
+        filled_json: z.any().describe("The reference JSON with all variables filled based on the product image")
+      }),
+      schemaName: "AdPromptAndJSON",
+      schemaDescription: "Generate a detailed prompt and filled template JSON for ad generation",
+      temperature: 0.3,
+      mode: "json",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert ad creative director.
+
+CRITICAL: You MUST return a valid JSON object with exactly these two fields:
+{
+  "prompt": "string - detailed prompt for image generation",
+  "filled_json": object - the reference JSON with variables filled
+}
+
+Your task:
 1. Analyze the product image
 2. Use the reference template JSON to create a new ad composition
 3. Fill all text variables, colors, and elements based on the product
-4. Generate a detailed prompt for AI image generation that recreates the reference ad layout with the new product
+4. Generate a detailed prompt for AI image generation
 
-Be specific about positioning, colors, typography, and composition. The goal is to maintain the exact layout and style of the reference while featuring the new product.`
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `Create an ad for this product using the reference template.
+Be specific about positioning, colors, typography, and composition.`
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Create an ad for this product using the reference template.
 
 REFERENCE TEMPLATE JSON:
 ${JSON.stringify(referenceJSON, null, 2)}
 
+${stepInstructions}
+
 INSTRUCTIONS:
-1. Analyze the product image and extract:
-   - Product name, tagline, key features
-   - Brand colors from the product packaging
-   - Product type and category
+1. Analyze the product image (name, colors, features)
+2. Fill the reference JSON template appropriately
+3. Generate a detailed prompt for image generation
 
-2. Fill the template JSON:
-   - Update all text_variables with product-specific copy
-   - Extract and use brand colors in color_variables
-   - Maintain the exact same layout and element positions
-   - Update product_elements to describe the new product
+IMPORTANT: Return a JSON object with "prompt" (string) and "filled_json" (object).`
+            },
+            {
+              type: "image",
+              image: productImageBuffer,
+              mediaType: "image/webp"
+            },
+            {
+              type: "image",
+              image: referenceImageBuffer,
+              mediaType: "image/webp"
+            }
+          ]
+        }
+      ],
+      maxRetries: 3
+    });
 
-3. Generate a detailed prompt that:
-   - Describes the exact layout from the reference
-   - Specifies all text positions and content
-   - Details the product positioning and lighting
-   - Includes brand colors and styling
-   - Maintains the reference's composition and aesthetic
-
-Return both the filled JSON and the generation prompt.`
-          },
-          {
-            type: "image",
-            image: productImageBuffer,
-            mediaType: "image/webp"
-          },
-          {
-            type: "image",
-            image: referenceImageBuffer,
-            mediaType: "image/webp"
-          }
-        ]
-      }
-    ],
-    maxRetries: 2
-  });
-
-  return result;
+    return result;
+  } catch (error) {
+    console.error("Error in generateAdPromptAndJSON:", error);
+    throw new Error(`Failed to generate prompt and JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }

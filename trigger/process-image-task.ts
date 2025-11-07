@@ -176,7 +176,7 @@ export const processImageTask = task({
             blur_data: blurData,
             aspect_ratio: aspectRatio,
             description: aiResult.object.description || null,
-            reference_json: referenceJSON ? JSON.stringify(referenceJSON) : null,
+            reference_json: referenceJSON
           })
           .select("id")
           .single();

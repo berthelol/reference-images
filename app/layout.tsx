@@ -12,9 +12,6 @@ const ImageSidebar = dynamic(() =>
   import("@/components/sidebar/image-sidebar")
 );
 
-const ImageGenerationModal = dynamic(() =>
-  import("@/components/modals/image-generation-modal").then(mod => ({ default: mod.ImageGenerationModal }))
-);
 
 export const metadata: Metadata = {
   title: 'Reference Images',
@@ -35,7 +32,6 @@ export default function RootLayout({
               {children}
             </main>
             <ImageSidebar />
-            <ImageGenerationModal />
             <Toaster />
           </QueryProvider>
         </NuqsAdapter>
